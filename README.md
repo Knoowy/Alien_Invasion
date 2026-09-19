@@ -1,9 +1,14 @@
 markdown
 # 👾 Alien Invasion
-
 [![Download](https://img.shields.io/badge/Download-Latest%20Release-brightgreen)](https://github.com/Knoowy/Alien_Invasion/releases/latest)
 
 Классическая аркадная игра на Python + Pygame.
+
+Проект основан на игре **Alien Invasion** из книги  
+**«Python Crash Course»** Эрика Мэтиза (Eric Matthes).
+
+- 📖 [Книга на No Starch Press](https://nostarch.com/python-crash-course-3rd-edition)
+- 🐙 [Официальный репозиторий книги](https://github.com/ehmatthes/pcc_3e)
 
 ## 📥 Скачать
 
