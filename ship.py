@@ -20,7 +20,7 @@ class Ship(Sprite):
         self.moving_right = False
         self.moving_left = False
 
-    def _load_image(self, default_size=(60, 54), default_color=(128, 128, 128)):
+    def _load_image(self, default_size=(60, 60), default_color=(128, 128, 128)):
         """Загружает изображение корабля или создает заглушку."""
         image_path = resource_path('dop_fails/images/ship.bmp')
 
@@ -29,8 +29,11 @@ class Ship(Sprite):
 
         try:
             image = pygame.image.load(image_path)
-            if image.get_flags() & pygame.SRCALPHA:
-                return image.convert_alpha()
+
+            # Убираем белый фон
+            colorkey = image.get_at((0, 0))
+            image.set_colorkey(colorkey)
+
             return image.convert()
         except pygame.error:
             return self._create_placeholder(default_size, default_color)
