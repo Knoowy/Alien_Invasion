@@ -1,4 +1,6 @@
+import json
 import os
+from pathlib import Path
 import sys
 
 
@@ -33,3 +35,21 @@ def get_data_path():
 
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
+
+def load_config() -> dict:
+    """Загружает конфигурацию игры из JSON."""
+    try:
+        path = Path(get_data_path()) / 'config.json'
+        if path.exists():
+            return json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        pass
+    return {}
+
+def save_config(config: dict) -> None:
+    """Сохраняет конфигурацию игры в JSON."""
+    try:
+        path = Path(get_data_path()) / 'config.json'
+        path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding='utf-8')
+    except OSError:
+        pass

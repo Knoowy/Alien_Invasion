@@ -1,11 +1,26 @@
+from utils import load_config, save_config
+
+
 class Settings:
     """Хранит все настройки игры."""
 
     def __init__(self):
+        # Загружаем сохранённый цвет фона
+        config = load_config()
+        r = config.get('bg_r', 10)
+        g = config.get('bg_g', 10)
+        b = config.get('bg_b', 70)
+
+        # Цвет фона (значения ограничены 0–255)
+        self.bg_color = (
+            max(0, min(255, r)),
+            max(0, min(255, g)),
+            max(0, min(255, b)),
+        )
+
         # Статические настройки
         self.screen_width = None
         self.screen_height = None
-        self.bg_color = (10, 10, 70)
 
         self.ship_limit = 3
         self.bullet_width = 3
@@ -45,3 +60,19 @@ class Settings:
             self.bullet_speed += 0.2
             self.alien_speed += 1.0
             self.ship_speed += 0.5
+
+    def set_bg_color(self, color: tuple) -> None:
+        """Устанавливает новый цвет фона (0–255 по каждому каналу)."""
+        self.bg_color = (
+            max(0, min(255, color[0])),
+            max(0, min(255, color[1])),
+            max(0, min(255, color[2])),
+        )
+
+    def save(self) -> None:
+        """Сохраняет настройки в config.json."""
+        save_config({
+            'bg_r': self.bg_color[0],
+            'bg_g': self.bg_color[1],
+            'bg_b': self.bg_color[2],
+        })
