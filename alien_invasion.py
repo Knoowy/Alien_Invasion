@@ -17,6 +17,7 @@ from button import Button
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
+from slider import Slider
 from utils import resource_path
 
 
@@ -56,6 +57,7 @@ class AlienInvasion:
         self._init_sounds()
         self._init_text_rendering()
         self._preload_instructions()
+        self._init_color_sliders()
 
         self.game_active = False
         self.pause = False
@@ -176,9 +178,84 @@ class AlienInvasion:
             }
             y_position += 50
 
+    def _init_color_sliders(self):
+        """Создаёт 3 ползунка RGB в правом нижнем углу экрана."""
+        # Размеры панели
+        panel_w = 420
+        panel_h = 240
+        panel_x = self.screen_rect.centerx - int(panel_w // 2)
+        panel_y = self.screen_rect.bottom - panel_h - 40
+
+        self.color_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+
+        # Длина дорожки ползунка
+        slider_w = panel_w - 140
+
+        # Текущие значения RGB
+        r, g, b = self.settings.bg_color
+
+        # Создаём ползунки с вертикальным отступом 60px
+        self.color_sliders = [
+            Slider(panel_x + 40, panel_y + 80,  slider_w, 0, 255, r, "R", (220, 60, 60)),
+            Slider(panel_x + 40, panel_y + 140, slider_w, 0, 255, g, "G", (60, 220, 60)),
+            Slider(panel_x + 40, panel_y + 200, slider_w, 0, 255, b, "B", (70, 110, 230)),
+        ]
+
+    def _update_bg_from_sliders(self):
+        """Мгновенно обновляет цвет фона по значениям ползунков."""
+        new_color = (
+            self.color_sliders[0].value,
+            self.color_sliders[1].value,
+            self.color_sliders[2].value,
+        )
+        self.settings.set_bg_color(new_color)
+
+    def _handle_slider_events(self, event) -> bool:
+        """Обрабатывает события ползунков. True — если событие поглощено."""
+        changed = False
+        for slider in self.color_sliders:
+            if slider.handle_event(event):
+                changed = True
+
+        if changed:
+            self._update_bg_from_sliders()
+            return True
+        return False
+
+    def _draw_color_panel(self):
+        """Рисует полупрозрачную панель с ползунками RGB."""
+        # Полупрозрачная подложка
+        panel_surface = pygame.Surface(self.color_panel_rect.size, pygame.SRCALPHA)
+        panel_surface.fill((25, 25, 35, 200))
+        self.screen.blit(panel_surface, self.color_panel_rect.topleft)
+
+        # Рамка
+        pygame.draw.rect(
+            self.screen, (120, 120, 150),
+            self.color_panel_rect, 2, border_radius=12
+        )
+
+        # Заголовок
+        title = self.font.render("Цвет фона", True, (255, 215, 0))
+        title_rect = title.get_rect(
+            center=(self.color_panel_rect.centerx, self.color_panel_rect.y + 30)
+        )
+        self.screen.blit(title, title_rect)
+
+        # Ползунки
+        for slider in self.color_sliders:
+            slider.draw(self.screen, self.font)
+
     def _check_events(self):
         """Обрабатывает нажатия клавиш и события мыши."""
+        # Ползунки активны только в меню или на паузе
+        sliders_active = (not self.game_active) or self.pause
+        
         for event in pygame.event.get():
+            # Сначала — события ползунков (если активны)
+            if sliders_active and self._handle_slider_events(event):
+                continue
+            
             if event.type == pygame.QUIT:
                 logging.info("Закрытие игры")
                 self._quit_game()
@@ -193,9 +270,12 @@ class AlienInvasion:
                 if event.button == 1 and self.game_active and not self.pause:
                     self._fire_bullet()
 
-    @staticmethod
-    def _quit_game():
-        """Корректно завершает игру."""
+    def _quit_game(self):
+        """Корректно завершает игру и сохраняет настройки."""
+        try:
+            self.settings.save()
+        except Exception:
+            pass
         pygame.quit()
         sys.exit()
 
@@ -422,6 +502,7 @@ class AlienInvasion:
 
     def _update_screen(self):
         """Обновляет изображения на экране."""
+        # Фон — актуальным цветом (меняется моментально)
         self.screen.fill(self.settings.bg_color)
 
         if self.game_active:
@@ -443,12 +524,18 @@ class AlienInvasion:
                 pause_rect = pause_text.get_rect()
                 pause_rect.center = self.screen_rect.center
                 self.screen.blit(pause_text, pause_rect)
+                
+                # Ползунки на паузе
+                self._draw_color_panel()
 
         if not self.game_active:
             for key in self.text_cache:
                 text_data = self.text_cache[key]
                 self.screen.blit(text_data['image'], text_data['rect'])
             self.play_button.draw_button()
+            
+            # Ползунки в меню
+            self._draw_color_panel()
 
         pygame.display.flip()
 
