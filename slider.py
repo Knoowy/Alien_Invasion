@@ -13,6 +13,8 @@ class Slider:
         self.color = color
         self.dragging = False
         self.handle_radius = 12
+        # Отдельный шрифт для подписи (меньше основного)
+        self.label_font = pygame.font.Font(None, 28)
 
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""
@@ -55,9 +57,20 @@ class Slider:
 
     def draw(self, screen, font):
         """Рисует ползунок."""
-        # Подпись с числом
-        label_surf = font.render(f"{self.label}: {self.value}", True, (255, 255, 255))
-        screen.blit(label_surf, (self.rect.x, self.rect.y - 28))
+        rgb_color = (255, 255, 255)
+        # Буква "R" — на фиксированной позиции, не двигается
+        letter_surf = self.label_font.render(self.label, True, rgb_color)
+        letter_rect = letter_surf.get_rect()
+        letter_rect.left = self.rect.x - 80       # фиксированный отступ
+        letter_rect.centery = self.rect.centery
+        screen.blit(letter_surf, letter_rect)
+
+        # Число — прижато правым краем, растёт влево
+        value_surf = self.label_font.render(str(self.value), True, rgb_color)
+        value_rect = value_surf.get_rect()
+        value_rect.right = self.rect.x - 20       # ← фиксируем ПРАВЫЙ край
+        value_rect.centery = self.rect.centery
+        screen.blit(value_surf, value_rect)
 
         # Дорожка
         pygame.draw.rect(screen, (50, 50, 60), self.rect, border_radius=4)

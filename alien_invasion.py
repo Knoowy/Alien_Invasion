@@ -131,7 +131,6 @@ class AlienInvasion:
         """Инициализирует настройки рендеринга текста."""
         self.font = pygame.font.SysFont(None, 48)
         self.text_cache = {}
-        self.button_color = (10, 10, 70)
 
     def _init_sounds(self):
         """Загружает все звуковые эффекты."""
@@ -168,7 +167,7 @@ class AlienInvasion:
 
         y_position = self.play_button.rect.y - 100
         for key, text in instructions.items():
-            text_image = self.font.render(text, True, self.sb.TEXT_COLOR, self.button_color)
+            text_image = self.font.render(text, True, self.sb.TEXT_COLOR)
             text_rect = text_image.get_rect()
             text_rect.centerx = int(self.screen_rect.centerx * 0.5)
             text_rect.top = y_position
@@ -181,24 +180,26 @@ class AlienInvasion:
     def _init_color_sliders(self):
         """Создаёт 3 ползунка RGB в правом нижнем углу экрана."""
         # Размеры панели
-        panel_w = 420
+        panel_w = 480
         panel_h = 240
         panel_x = self.screen_rect.centerx - int(panel_w // 2)
         panel_y = self.screen_rect.bottom - panel_h - 40
 
         self.color_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
 
-        # Длина дорожки ползунка
-        slider_w = panel_w - 140
+        # Отступ слева — под подпись "R: 255"
+        label_offset = 100
+        # Правый отступ — 40
+        slider_w = panel_w - label_offset - 40
 
         # Текущие значения RGB
         r, g, b = self.settings.bg_color
 
         # Создаём ползунки с вертикальным отступом 60px
         self.color_sliders = [
-            Slider(panel_x + 40, panel_y + 80,  slider_w, 0, 255, r, "R", (220, 60, 60)),
-            Slider(panel_x + 40, panel_y + 140, slider_w, 0, 255, g, "G", (60, 220, 60)),
-            Slider(panel_x + 40, panel_y + 200, slider_w, 0, 255, b, "B", (70, 110, 230)),
+            Slider(panel_x + label_offset, panel_y + 80,  slider_w, 0, 255, r, "R", (220, 60, 60)),
+            Slider(panel_x + label_offset, panel_y + 140, slider_w, 0, 255, g, "G", (60, 220, 60)),
+            Slider(panel_x + label_offset, panel_y + 200, slider_w, 0, 255, b, "B", (70, 110, 230)),
         ]
 
     def _update_bg_from_sliders(self):
@@ -223,26 +224,51 @@ class AlienInvasion:
         return False
 
     def _draw_color_panel(self):
-        """Рисует полупрозрачную панель с ползунками RGB."""
-        # Полупрозрачная подложка
-        panel_surface = pygame.Surface(self.color_panel_rect.size, pygame.SRCALPHA)
-        panel_surface.fill((25, 25, 35, 200))
-        self.screen.blit(panel_surface, self.color_panel_rect.topleft)
+        """Рисует минималистичную полупрозрачную панель."""
+        rect = self.color_panel_rect
 
-        # Рамка
+        # 1. Мягкая тень
+        for i in range(10, 0, -1):
+            shadow = pygame.Surface((rect.width + i * 2, rect.height + i * 2), pygame.SRCALPHA)
+            pygame.draw.rect(
+                shadow,
+                (0, 0, 0, 8),               # очень слабая тень
+                shadow.get_rect(),
+                border_radius=20 + i)
+            self.screen.blit(shadow, (rect.x - i, rect.y - i + 4))
+
+        # 2. Основная подложка — полупрозрачная белая
+        panel_surface = pygame.Surface(rect.size, pygame.SRCALPHA)
+
         pygame.draw.rect(
-            self.screen, (120, 120, 150),
-            self.color_panel_rect, 2, border_radius=12
-        )
+            panel_surface,
+            (255, 255, 255, 25),         # белый, почти прозрачный (25 из 255)
+            panel_surface.get_rect(),
+            border_radius=16)
+        
+        self.screen.blit(panel_surface, rect.topleft)
 
-        # Заголовок
-        title = self.font.render("Цвет фона", True, (255, 215, 0))
-        title_rect = title.get_rect(
-            center=(self.color_panel_rect.centerx, self.color_panel_rect.y + 30)
+        # 3. Тонкая светлая рамка
+        border_surface = pygame.Surface(rect.size, pygame.SRCALPHA)
+        pygame.draw.rect(
+            border_surface,
+            (255, 255, 255, 90),         # полупрозрачный белый
+            border_surface.get_rect(),
+            1,                           # толщина 1 пиксель
+            border_radius=16,
         )
+        self.screen.blit(border_surface, rect.topleft)
+
+        # 4. Заголовок (светлый, хорошо читается на тёмном фоне)
+        title = self.font.render("Background color", True, (255, 255, 255))
+        title_rect = title.get_rect(center=(rect.centerx, rect.y + 30))
         self.screen.blit(title, title_rect)
 
-        # Ползунки
+        sep_surface = pygame.Surface((rect.width - 40, 1), pygame.SRCALPHA)
+        sep_surface.fill((255, 255, 255, 60))
+        self.screen.blit(sep_surface, (rect.x + 20, rect.y + 55))
+
+        # 6. Ползунки
         for slider in self.color_sliders:
             slider.draw(self.screen, self.font)
 
@@ -541,5 +567,6 @@ class AlienInvasion:
 
 
 if __name__ == '__main__':
+    print("start")
     ai = AlienInvasion()
     ai.run_game()
