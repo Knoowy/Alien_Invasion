@@ -129,7 +129,13 @@ class AlienInvasion:
 
     def _init_text_rendering(self):
         """Инициализирует настройки рендеринга текста."""
-        self.font = pygame.font.SysFont(None, 48)
+        font_path = resource_path("dop_fails/fonts/font.ttf")
+        try:
+            self.font = pygame.font.Font(font_path, 32)
+        except (FileNotFoundError, pygame.error, OSError) as e:
+            logging.warning(f"⚠️ He удалось загрузить {font_path}: {e}")
+            logging.warning("   Использую стандартный шрифт Pygame")
+            self.font = pygame.font.Font(None, 32)
         self.text_cache = {}
 
     def _init_sounds(self):

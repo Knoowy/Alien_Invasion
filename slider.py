@@ -1,4 +1,5 @@
 import pygame
+from utils import resource_path
 
 
 class Slider:
@@ -14,7 +15,7 @@ class Slider:
         self.dragging = False
         self.handle_radius = 12
         # Отдельный шрифт для подписи (меньше основного)
-        self.label_font = pygame.font.Font(None, 28)
+        self.label_font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), 18)
 
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""

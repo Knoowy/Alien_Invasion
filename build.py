@@ -18,7 +18,7 @@ def clean_build():
     data_dir = get_data_path()
     if os.path.exists(data_dir):
         shutil.rmtree(data_dir)
-        print(f"🗑️  Удалена папка с данными: {data_dir}")
+        print(f"🗑️  Удалена папка c данными: {data_dir}")
 
     targets = ['build', 'dist', '__pycache__', 'AlienInvasion.spec']
     for target in targets:

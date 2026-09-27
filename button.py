@@ -1,9 +1,10 @@
 import pygame.font
 import time
+from utils import resource_path
 
 
 class Button:
-    """Кнопка с постоянно бегающим бликом."""
+    """Кнопка c постоянно бегающим бликом."""
 
     TEXT_COLOR = (255, 255, 255)
 
@@ -27,7 +28,7 @@ class Button:
 
         self.width, self.height = 220, 60
 
-        self.font = pygame.font.Font(None, 42)
+        self.font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), 32)
 
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = self.screen_rect.center

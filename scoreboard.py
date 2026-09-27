@@ -9,11 +9,11 @@ class Scoreboard:
 
     # Настройки отображения
     TEXT_COLOR = (255, 215, 0)
-    FONT_SIZE = 48
+    FONT_SIZE = 32
     SCORE_TOP = 20
     SCORE_RIGHT_OFFSET = 20
     SHIP_SPACING = 10
-    FLEET_TOP_OFFSET = FONT_SIZE + 20
+    FLEET_TOP_OFFSET = FONT_SIZE + 30
     RECORD_FILE = "record.txt"
     RECORD_SOUND = "dop_fails/music/record.mp3"
 
@@ -24,7 +24,7 @@ class Scoreboard:
         self.stats = stats
         self._ship_factory = ship_factory
 
-        self.font = pygame.font.SysFont(None, self.FONT_SIZE)
+        self.font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), self.FONT_SIZE)
 
         # Загрузка рекорда
         self.record = self._load_record()
