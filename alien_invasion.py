@@ -1,5 +1,6 @@
 import sys
 import os
+import time
 from time import sleep
 
 # Скрываем приветствие Pygame
@@ -18,6 +19,7 @@ from ship import Ship
 from bullet import Bullet
 from alien import Alien
 from slider import Slider
+from starfield import StarField
 from utils import resource_path
 
 
@@ -44,6 +46,11 @@ class AlienInvasion:
         self.ship = Ship(self)
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
+        # Звёздное небо
+        self.starfield = StarField(
+        self.screen_rect.width,
+        self.screen_rect.height,
+        count=200)
 
         # Создаем Scoreboard с внедрением зависимостей
         self.sb = Scoreboard(
@@ -62,6 +69,24 @@ class AlienInvasion:
         self.game_active = False
         self.pause = False
         self.fon_music_active = False
+        self._mouse_visible = False
+        
+        # Гиперпрыжок при старте игры
+        self.transition = False
+        self.transition_start_time = 0
+        self.TRANSITION_DURATION = 1.0   # секунд
+        
+        # Fade-in игры после гиперпрыжка
+        self.fade_in = False
+        self.fade_in_start_time = 0
+        self.FADE_IN_DURATION = 1.0 # секунд
+        
+        # Затемнение: 0 = прозрачно, 255 = чёрный экран
+        self._overlay_alpha = 0
+
+        # Кэшированный overlay — создаётся один раз
+        self._overlay_surface = pygame.Surface(self.screen_rect.size)
+        self._overlay_surface.fill((0, 0, 0))
 
     def run_game(self):
         """Запускает главный игровой цикл."""
@@ -80,15 +105,77 @@ class AlienInvasion:
                     self.ship.update()
                     self._update_bullets()
                     self._update_aliens()
+                
+                self._update_mouse()
+                self.starfield.update()
+ 
+                self._transition()
+                self._fade_in()
 
                 self._update_screen()
                 self.clock.tick(240)
+
             except pygame.error as e:
                 logging.error(f"Ошибка Pygame: {e}")
                 continue
             except Exception as e:
                 logging.error(f"Неожиданная ошибка: {e}")
                 continue
+
+    def _transition(self):
+        """Переход в игру: разгон → пик → торможение + затемнение."""
+        if self.transition:
+            elapsed = time.time() - self.transition_start_time
+            progress = min(elapsed / self.TRANSITION_DURATION, 1.0)
+
+            # Фаза 1: РАЗГОН (0.0 → 0.35) — 1.0 → 8.0
+            if progress < 0.35:
+                phase = progress / 0.35
+                self.starfield.speed_multiplier = 1.0 + phase * 7.0
+                self._overlay_alpha = 0
+
+            # Фаза 2: ПИК (0.35 → 0.65) — держим 8.0
+            elif progress < 0.65:
+                self.starfield.speed_multiplier = 8.0
+                self._overlay_alpha = 0
+
+            # Фаза 3: ТОРМОЖЕНИЕ + ЗАТЕМНЕНИЕ (0.65 → 1.0)
+            else:
+                phase = (progress - 0.65) / 0.35          # 0 → 1
+                ease = (1.0 - phase) ** 2
+                self.starfield.speed_multiplier = 1.0 + ease * 7.0
+                self._overlay_alpha = int(255 * phase)
+
+            # Переход завершён — стартуем игру
+            if progress >= 1.0:
+                self.transition = False
+                self.starfield.speed_multiplier = 1.0
+                self._overlay_alpha = 255
+                self._reset_game()
+
+                self.fade_in = True
+                self.fade_in_start_time = time.time()
+        else:
+            self.starfield.speed_multiplier = 1.0
+
+    def _fade_in(self):
+        """Fade-in игры: overlay alpha 255 → 0."""
+        if self.fade_in:
+            elapsed = time.time() - self.fade_in_start_time
+            progress = min(elapsed / self.FADE_IN_DURATION, 1.0)
+
+            # Alpha уменьшается от 255 до 0
+            self._overlay_alpha = int(255 * (1.0 - progress))
+
+            if progress >= 1.0:
+                self.fade_in = False
+                self._overlay_alpha = 0
+
+    def _draw_overlay(self):
+        """Рисует затемняющий overlay, если alpha > 0."""
+        if self._overlay_alpha > 0:
+            self._overlay_surface.set_alpha(self._overlay_alpha)
+            self.screen.blit(self._overlay_surface, (0, 0))
 
     def _setup_display(self):
         """Настраивает дисплей в полноэкранном или оконном режиме."""
@@ -326,8 +413,10 @@ class AlienInvasion:
     def _check_play_button(self, mouse_pos):
         """Запускает новую игру при клике на кнопку Play."""
         button_clicked = self.play_button.rect.collidepoint(mouse_pos)
-        if button_clicked and not self.game_active:
-            self._reset_game()
+        if button_clicked and not self.game_active and not self.transition:
+            # Вместо мгновенного старта — запускаем переход
+            self.transition = True
+            self.transition_start_time = time.time()
 
     def _reset_game(self):
         """Сбрасывает все настройки и статистику для новой игры."""
@@ -344,10 +433,6 @@ class AlienInvasion:
             self._create_fleet()
             self.ship.center_ship()
 
-            try:
-                pygame.mouse.set_visible(False)
-            except pygame.error as e:
-                logging.warning(f"Не удалось скрыть курсор: {e}")
         except Exception as e:
             logging.error(f"Ошибка при перезапуске игры: {e}")
 
@@ -362,12 +447,25 @@ class AlienInvasion:
         elif event.key in (pygame.K_a, pygame.K_LEFT):
             if not self.pause:
                 self.ship.moving_left = True
+                
+        #ПРОПУСК ГИПЕРПРЫЖКА ПО ПРОБЕЛУ
+        elif event.key == pygame.K_SPACE and self.transition:
+            # Мгновенно завершаем переход
+            self.transition = False
+            self.starfield.speed_multiplier = 1.0
+            self._overlay_alpha = 255
+            self._reset_game()
+
+            # Запускаем быстрый fade-in
+            self.fade_in = True
+            self.fade_in_start_time = time.time()
+
         elif event.key == pygame.K_SPACE:
             if self.game_active and not self.pause:
                 self._fire_bullet()
         elif event.key == pygame.K_m:
             self._toggle_background_music(not self.fon_music_active)
-        elif event.key == pygame.K_r:
+        elif event.key == pygame.K_r and not self.transition:
             self._restart_game()
         elif event.key == pygame.K_p and self.game_active:
             self.pause = not self.pause
@@ -377,16 +475,29 @@ class AlienInvasion:
         self.game_active = False
         self.bullets.empty()
         self.aliens.empty()
-        try:
-            pygame.mouse.set_visible(True)
-            pygame.mouse.set_pos(
-                int(self.screen_rect.right * 0.6),
-                int(self.screen_rect.bottom * 0.5)
-            )
-        except pygame.error:
-            pass
-
         self.sb.reset()
+
+        # Сбрасываем затемнение, если оно было
+        self.fade_in = False
+        self._overlay_alpha = 0
+
+    def _update_mouse(self):
+        """Управляет видимостью курсора.
+        Курсор появляется в одной и той же точке — по центру справа."""
+
+        should_be_visible = (not self.game_active and not self.transition) or self.pause
+
+        if should_be_visible != self._mouse_visible:
+            try:
+                pygame.mouse.set_visible(should_be_visible)
+                if should_be_visible:
+                    pygame.mouse.set_pos(
+                        int(self.screen_rect.right * 0.6),
+                        int(self.screen_rect.bottom * 0.5))
+
+                self._mouse_visible = should_be_visible
+            except pygame.error as e:
+                logging.warning(f"Не удалось изменить видимость курсора: {e}")
 
     def _check_keyup_events(self, event):
         """Реагирует на отпускание клавиш."""
@@ -536,6 +647,9 @@ class AlienInvasion:
         """Обновляет изображения на экране."""
         # Фон — актуальным цветом (меняется моментально)
         self.screen.fill(self.settings.bg_color)
+        
+        # Звёзды — поверх фона, под остальными элементами
+        self.starfield.draw(self.screen)
 
         if self.game_active:
             if not self.pause:
@@ -560,7 +674,7 @@ class AlienInvasion:
                 # Ползунки на паузе
                 self._draw_color_panel()
 
-        if not self.game_active:
+        if not self.game_active and not self.transition:
             for key in self.text_cache:
                 text_data = self.text_cache[key]
                 self.screen.blit(text_data['image'], text_data['rect'])
@@ -569,10 +683,10 @@ class AlienInvasion:
             # Ползунки в меню
             self._draw_color_panel()
 
+        self._draw_overlay()
         pygame.display.flip()
 
 
 if __name__ == '__main__':
-    print("start")
     ai = AlienInvasion()
     ai.run_game()
