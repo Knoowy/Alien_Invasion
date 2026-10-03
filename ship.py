@@ -54,12 +54,12 @@ class Ship(Sprite):
         self.rect.midbottom = self.screen_rect.midbottom
         self.x = float(self.rect.x)
 
-    def update(self):
+    def update(self, dt):
         """Обновляет позицию корабля."""
         if self.moving_right and self.rect.right < self.screen_rect.right:
-            self.x += self.settings.ship_speed
+            self.x += self.settings.ship_speed * dt
         if self.moving_left and self.rect.left > 0:
-            self.x -= self.settings.ship_speed
+            self.x -= self.settings.ship_speed * dt
 
         self.rect.x = int(self.x)
 

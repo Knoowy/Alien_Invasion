@@ -107,6 +107,8 @@ class AlienInvasion:
 
         while True:
             try:
+                dt = min(self.clock.tick(240) / 1000.0, 0.05)
+                
                 self._check_events()
 
                 # Если окно потеряло фокус - ставим на паузу
@@ -115,22 +117,21 @@ class AlienInvasion:
 
                 # Обработка таймера респавна
                 if self.respawn_timer > 0:
-                    self.respawn_timer -= self.clock.get_time() / 1000.0
+                    self.respawn_timer -= dt
                     if self.respawn_timer < 0:
                         self.respawn_timer = 0.0
                 elif self.game_active and not self.pause:
-                    self.ship.update()
-                    self._update_bullets()
-                    self._update_aliens()
+                    self.ship.update(dt)
+                    self._update_bullets(dt)
+                    self._update_aliens(dt)
                 
                 self._update_mouse()
-                self.starfield.update()
+                self.starfield.update(dt)
  
                 self._transition()
                 self._fade_in()
 
                 self._update_screen()
-                self.clock.tick(240)
                 
                 error_count = 0
 
@@ -550,15 +551,25 @@ class AlienInvasion:
                 except pygame.error as e:
                     logging.warning(f"Ошибка при воспроизведении звука выстрела: {e}")
 
-    def _update_bullets(self):
+    def _update_bullets(self, dt):
         """Обновляет позиции пуль и удаляет старые."""
-        self.bullets.update()
+        self.bullets.update(dt)
 
         for bullet in self.bullets.copy():
             if bullet.rect.bottom <= 0:
                 self.bullets.remove(bullet)
 
         self._check_bullet_alien_collisions()
+
+    def _update_aliens(self, dt):
+        """Обновляет позиции флота пришельцев."""
+        self._check_fleet_edges()
+        self.aliens.update(dt)
+
+        if pygame.sprite.spritecollideany(self.ship, self.aliens):
+            self._ship_hit()
+
+        self._check_aliens_bottom()
 
     def _check_bullet_alien_collisions(self):
         """Обрабатывает столкновения пуль с пришельцами."""
@@ -616,16 +627,6 @@ class AlienInvasion:
                     self.over_music.play()
                 except pygame.error as e:
                     logging.warning(f"Ошибка при воспроизведении звука: {e}")
-
-    def _update_aliens(self):
-        """Обновляет позиции флота пришельцев."""
-        self._check_fleet_edges()
-        self.aliens.update()
-
-        if pygame.sprite.spritecollideany(self.ship, self.aliens):
-            self._ship_hit()
-
-        self._check_aliens_bottom()
 
     def _check_aliens_bottom(self):
         """Проверяет, достигли ли пришельцы нижней границы экрана."""

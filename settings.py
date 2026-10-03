@@ -35,9 +35,9 @@ class Settings:
 
     def initialize_dynamic_settings(self):
         """Инициализирует настройки, которые меняются во время игры."""
-        self.ship_speed = 2.5
-        self.alien_speed = 0.5
-        self.bullet_speed = 2.5
+        self.ship_speed = 2.5 * 240
+        self.alien_speed = 0.5 * 240
+        self.bullet_speed = 2.5 * 240
         self.bullets_allowed = 4
         self.fleet_direction = 1
         self.alien_points = 10
@@ -57,9 +57,9 @@ class Settings:
             self.alien_speed *= 1.05
         elif self.level < 60:
             self.bullets_allowed += 1
-            self.bullet_speed += 0.2
-            self.alien_speed += 1.0
-            self.ship_speed += 0.5
+            self.bullet_speed += 50
+            self.alien_speed += 240
+            self.ship_speed += 120
 
     def set_bg_color(self, color: tuple) -> None:
         """Устанавливает новый цвет фона (0–255 по каждому каналу)."""

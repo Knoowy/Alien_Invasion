@@ -19,23 +19,23 @@ class Star:
             self.y = -5
 
         self.size = random.choice([1, 1, 1, 2, 2, 3])
-        self.speed = self.size * 0.5 + random.uniform(0.2, 0.8)
+        self.speed = (self.size * 0.5 + random.uniform(0.2, 0.8)) * 240
         self.brightness = random.randint(200, 255)
 
-    def update(self, speed_multiplier=1.0):
+    def update(self, dt,  speed_multiplier=1.0):
         """Двигает звезду вниз с учётом множителя скорости."""
-        self.y += self.speed * speed_multiplier
+        self.y += self.speed * speed_multiplier * dt
         if self.y > self.screen_height:
             self.reset()
 
     def draw(self, screen, speed_multiplier):
         color = (self.brightness, self.brightness, self.brightness)
-         # Длина шлейфа пропорциональна скорости
+        # Длина шлейфа пропорциональна скорости
          
         # Шлейф появляется ТОЛЬКО при ускорении (speed > 1.0)
         boost = max(0.0, speed_multiplier - 1.0)
         
-        trail_length = int(self.speed * boost * 8)
+        trail_length = int(self.speed * boost * 0.03)
         if trail_length <= 3:
             pygame.draw.circle(
             screen, color,
@@ -57,9 +57,9 @@ class StarField:
         ]
         self.speed_multiplier = 1.0   # множитель для гиперпрыжка
 
-    def update(self):
+    def update(self, dt):
         for star in self.stars:
-            star.update(self.speed_multiplier)
+            star.update(dt, self.speed_multiplier)
 
     def draw(self, screen):
         for star in self.stars:
