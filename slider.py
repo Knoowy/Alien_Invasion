@@ -1,6 +1,5 @@
 import pygame
-from utils import resource_path
-
+from utils import load_font
 
 class Slider:
     """Ползунок для настройки значения (от min_val до max_val)."""
@@ -15,7 +14,7 @@ class Slider:
         self.dragging = False
         self.handle_radius = 12
         # Отдельный шрифт для подписи (меньше основного)
-        self.label_font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), 18)
+        self.label_font = load_font(18)
 
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""

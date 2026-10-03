@@ -4,23 +4,23 @@ from pathlib import Path
 import sys
 
 
-def resource_path(relative_path):
+def resource_path(relative_path: str) -> str:
     """Получить абсолютный путь к ресурсу (работает в EXE и в исходниках)."""
-    try:
+    if hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.abspath(".")
+    else:
+        base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
 
-def app_path():
+
+def app_path() -> str:
     """Возвращает путь к папке, где находится EXE (или .py)."""
     if getattr(sys, 'frozen', False):
         return os.path.dirname(sys.executable)
-    else:
-        return os.path.abspath(".")
+    return os.path.dirname(os.path.abspath(__file__))
 
 
-def get_data_path():
+def get_data_path() -> str:
     """
     Возвращает путь к папке для сохранения данных игры.
     - На Windows: %APPDATA%/AlienInvasion
@@ -46,10 +46,29 @@ def load_config() -> dict:
         pass
     return {}
 
+
 def save_config(config: dict) -> None:
     """Сохраняет конфигурацию игры в JSON."""
     try:
         path = Path(get_data_path()) / 'config.json'
-        path.write_text(json.dumps(config, indent=2, ensure_ascii=False), encoding='utf-8')
+        path.write_text(
+            json.dumps(config, indent=2, ensure_ascii=False),
+            encoding='utf-8',
+        )
     except OSError:
         pass
+
+def load_font(size: int, font_relative_path: str = "dop_fails/fonts/font.ttf"):
+    """
+    Загружает шрифт по относительному пути. Если файл не найден/битый —
+    возвращает стандартный шрифт Pygame.
+
+    Импорт pygame делаем локально, чтобы utils можно было использовать
+    в скриптах сборки без инициализации pygame.
+    """
+    import pygame
+
+    try:
+        return pygame.font.Font(resource_path(font_relative_path), size)
+    except (FileNotFoundError, pygame.error, OSError):
+        return pygame.font.Font(None, size)

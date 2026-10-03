@@ -1,6 +1,6 @@
 import pygame.font
 import time
-from utils import resource_path
+from utils import load_font
 
 
 class Button:
@@ -28,7 +28,7 @@ class Button:
 
         self.width, self.height = 220, 60
 
-        self.font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), 32)
+        self.font = load_font(32)
 
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = self.screen_rect.center

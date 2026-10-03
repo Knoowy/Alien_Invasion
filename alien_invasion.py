@@ -1,7 +1,6 @@
 import sys
 import os
 import time
-from time import sleep
 
 # Скрываем приветствие Pygame
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "hide"
@@ -28,7 +27,13 @@ class AlienInvasion:
 
     def __init__(self):
         pygame.init()
-        pygame.mixer.init()
+        
+        self.audio_enabled = True 
+        try:
+            pygame.mixer.init()
+        except pygame.error as e:
+            logging.warning(f"Аудио недоступно: {e}")
+            self.audio_enabled = False
 
         logging.basicConfig(level=logging.INFO)
         logging.info("Инициализация игры")
@@ -87,11 +92,18 @@ class AlienInvasion:
         # Кэшированный overlay — создаётся один раз
         self._overlay_surface = pygame.Surface(self.screen_rect.size)
         self._overlay_surface.fill((0, 0, 0))
+ 
+        # Таймер респавна после потери корабля (в секундах)
+        self.respawn_timer = 0.0
+        self.RESPAWN_DURATION = 0.5
 
     def run_game(self):
         """Запускает главный игровой цикл."""
         logging.info("Запуск игры")
         self._toggle_background_music(True)
+        
+        error_count = 0
+        MAX_ERRORS = 30
 
         while True:
             try:
@@ -101,7 +113,12 @@ class AlienInvasion:
                 if not pygame.display.get_active():
                     self.pause = True
 
-                if self.game_active and not self.pause:
+                # Обработка таймера респавна
+                if self.respawn_timer > 0:
+                    self.respawn_timer -= self.clock.get_time() / 1000.0
+                    if self.respawn_timer < 0:
+                        self.respawn_timer = 0.0
+                elif self.game_active and not self.pause:
                     self.ship.update()
                     self._update_bullets()
                     self._update_aliens()
@@ -114,13 +131,24 @@ class AlienInvasion:
 
                 self._update_screen()
                 self.clock.tick(240)
+                
+                error_count = 0
 
             except pygame.error as e:
-                logging.error(f"Ошибка Pygame: {e}")
-                continue
+                error_count += 1
+                logging.error(f"Ошибка Pygame ({error_count}/{MAX_ERRORS}): {e}")
+                if error_count >= MAX_ERRORS:
+                    logging.critical("Слишком много ошибок Pygame — выход")
+                    self._quit_game()
+                time.sleep(0.05)
+
             except Exception as e:
-                logging.error(f"Неожиданная ошибка: {e}")
-                continue
+                error_count += 1
+                logging.exception(f"Неожиданная ошибка ({error_count}/{MAX_ERRORS}): {e}")
+                if error_count >= MAX_ERRORS:
+                    logging.critical("Слишком много ошибок подряд — выход")
+                    self._quit_game()
+                time.sleep(0.05)
 
     def _transition(self):
         """Переход в игру: разгон → пик → торможение + затемнение."""
@@ -231,6 +259,9 @@ class AlienInvasion:
         self.create_alien_music = None
         self.over_music = None
         self.fire_music = None
+        
+        if not self.audio_enabled:
+            return 
 
         try:
             self.fon_music = pygame.mixer.Sound(resource_path("dop_fails/music/play_menu.mp3"))
@@ -386,7 +417,7 @@ class AlienInvasion:
                 mouse_pos = pygame.mouse.get_pos()
                 self._check_play_button(mouse_pos)
                 # Стрельба только при активной игре и не на паузе
-                if event.button == 1 and self.game_active and not self.pause:
+                if event.button == 1 and self.game_active and not self.pause and self.respawn_timer <= 0:
                     self._fire_bullet()
 
     def _quit_game(self):
@@ -401,6 +432,8 @@ class AlienInvasion:
     def _toggle_background_music(self, active):
         """Включает/выключает фоновую музыку."""
         self.fon_music_active = active
+        if not self.audio_enabled:
+            return 
         if self.fon_music is not None:
             try:
                 if active:
@@ -460,7 +493,7 @@ class AlienInvasion:
             self.fade_in = True
             self.fade_in_start_time = time.time()
 
-        elif event.key == pygame.K_SPACE:
+        elif event.key == pygame.K_SPACE and self.respawn_timer <= 0:
             if self.game_active and not self.pause:
                 self._fire_bullet()
         elif event.key == pygame.K_m:
@@ -574,7 +607,8 @@ class AlienInvasion:
                     logging.warning(f"Ошибка при воспроизведении звука: {e}")
 
             self.ship.center_ship()
-            sleep(0.5)
+            self.respawn_timer = self.RESPAWN_DURATION
+
         else:
             self._restart_game()
             if self.over_music is not None:

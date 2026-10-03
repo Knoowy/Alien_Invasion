@@ -1,8 +1,7 @@
 import pygame
 from pygame.sprite import Group
 from pathlib import Path
-from utils import resource_path, app_path, get_data_path
-
+from utils import get_data_path, load_font, resource_path
 
 class Scoreboard:
     """Отображает счет, рекорд, уровень и оставшиеся корабли."""
@@ -24,7 +23,7 @@ class Scoreboard:
         self.stats = stats
         self._ship_factory = ship_factory
 
-        self.font = pygame.font.Font(resource_path(r"dop_fails/fonts/font.ttf"), self.FONT_SIZE)
+        self.font = load_font(self.FONT_SIZE)
 
         # Загрузка рекорда
         self.record = self._load_record()
