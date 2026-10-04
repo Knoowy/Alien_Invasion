@@ -1,6 +1,7 @@
-import pygame.font
+import pygame
 import time
 from utils import load_font
+from style import FONT_SIZE_LARGE
 
 
 class Button:
@@ -28,7 +29,7 @@ class Button:
 
         self.width, self.height = 220, 60
 
-        self.font = load_font(32)
+        self.font = load_font(FONT_SIZE_LARGE)
 
         self.rect = pygame.Rect(0, 0, self.width, self.height)
         self.rect.center = self.screen_rect.center

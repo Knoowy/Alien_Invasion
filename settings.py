@@ -4,6 +4,17 @@ from utils import load_config, save_config
 class Settings:
     """Хранит все настройки игры."""
 
+    # ─── Константы баланса ────────────────────────────────────────
+    DISTANCE_MAX = 5.0              # предел множителя расстояния во флоте
+    POINTS_SOFT_CAP = 1488          # до этого порога очки растут быстро
+    POINTS_GROWTH_FAST = 1.5        # множитель очков ниже порога
+    POINTS_GROWTH_SLOW = 1.005      # множитель очков выше порога
+    BULLETS_MAX = 12                # предел одновременных пуль
+
+    # ─── Фазы сложности (по уровню) ───────────────────────────────
+    PHASE_1_END = 30                # до 30 — плавный рост alien_speed
+    PHASE_2_END = 60                # до 60 — рост ресурсов игрока
+
     def __init__(self):
         # Загружаем сохранённый цвет фона
         config = load_config()
@@ -34,31 +45,49 @@ class Settings:
         self.initialize_dynamic_settings()
 
     def initialize_dynamic_settings(self):
-        """Инициализирует настройки, которые меняются во время игры."""
-        self.ship_speed = 2.5 * 240
-        self.alien_speed = 0.5 * 240
-        self.bullet_speed = 2.5 * 240
+        """Инициализирует настройки, которые меняются во время игры.
+
+        Все скорости — в ПИКСЕЛЯХ В СЕКУНДУ (px/sec).
+        Значения эквивалентны прежним пикселям за кадр при 240 FPS."""
+
+        self.ship_speed = 600.0
+        self.alien_speed = 120.0
+        self.bullet_speed = 600.0
         self.bullets_allowed = 4
         self.fleet_direction = 1
         self.alien_points = 10
         self.level = 1
 
     def increase_speed(self):
-        """Увеличивает скорость и сложность игры."""
-        if self.distance_multiplier < 5:
+        """Увеличивает скорость и сложность игры.
+
+        Логика разбита на фазы:
+        - Уровни 1 - 29: плавное ускорение пришельцев.
+        - Уровни 30 - 59: игроку больше пуль и скорости,
+          пришельцы растут мягче.
+        - Уровни 60+: только очки растут (мягко).
+        """
+
+        # Расстояние между пришельцами — растёт до предела
+        if self.distance_multiplier < self.DISTANCE_MAX:
             self.distance_multiplier += self.distance_increase_rate
 
-        if self.alien_points < 1488:
-            self.alien_points = int(self.alien_points * 1.5)
+        # Очки: быстрый рост до soft-cap, потом мягкий
+        if self.alien_points < self.POINTS_SOFT_CAP:
+            self.alien_points = int(self.alien_points * self.POINTS_GROWTH_FAST)
         else:
-            self.alien_points = int(self.alien_points * 1.005)
+            self.alien_points = int(self.alien_points * self.POINTS_GROWTH_SLOW)
 
-        if self.level < 30:
+        if self.level < self.PHASE_1_END:
+            # Фаза 1: плавный рост скорости пришельцев
             self.alien_speed *= 1.05
-        elif self.level < 60:
-            self.bullets_allowed += 1
+        elif self.level < self.PHASE_2_END:
+            # Фаза 2: игроку больше ресурсов, пришельцы растут мягче
+            self.bullets_allowed = min(
+                self.bullets_allowed + 1, self.BULLETS_MAX
+            )
             self.bullet_speed += 50
-            self.alien_speed += 240
+            self.alien_speed *= 1.03
             self.ship_speed += 120
 
     def set_bg_color(self, color: tuple) -> None:

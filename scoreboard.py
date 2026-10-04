@@ -1,18 +1,21 @@
 import pygame
 from pygame.sprite import Group
 from pathlib import Path
+
 from utils import get_data_path, load_font, resource_path
+from style import (
+    TEXT_COLOR,
+    FONT_SIZE_LARGE,
+    SCORE_TOP,
+    SCORE_RIGHT_OFFSET,
+    SCORE_LINE_HEIGHT,
+    SHIP_SPACING,
+)
+
 
 class Scoreboard:
-    """Отображает счет, рекорд, уровень и оставшиеся корабли."""
+    """Отображает счёт, рекорд, уровень и оставшиеся корабли."""
 
-    # Настройки отображения
-    TEXT_COLOR = (255, 215, 0)
-    FONT_SIZE = 32
-    SCORE_TOP = 20
-    SCORE_RIGHT_OFFSET = 20
-    SHIP_SPACING = 10
-    FLEET_TOP_OFFSET = FONT_SIZE + 30
     RECORD_FILE = "record.txt"
     RECORD_SOUND = "dop_fails/music/record.mp3"
 
@@ -23,9 +26,9 @@ class Scoreboard:
         self.stats = stats
         self._ship_factory = ship_factory
 
-        self.font = load_font(self.FONT_SIZE)
+        self.font = load_font(FONT_SIZE_LARGE)
 
-        # Загрузка рекорда
+        # Рекорд
         self.record = self._load_record()
         self.has_record = self.record > 0
 
@@ -39,15 +42,15 @@ class Scoreboard:
         except (FileNotFoundError, pygame.error):
             self.record_sound = None
 
-        # Кэши для оптимизации
-        self.last_score = -1
+        # Кэши
+        self._last_score = -1
         self._last_level = -1
+        self._last_record = -1
         self._last_ships = -1
+        self._last_bg_color = None
 
-        # Группа для кораблей
         self.ships = Group()
 
-        # Изображения и их прямоугольники
         self.score_image = None
         self.record_image = None
         self.level_image = None
@@ -58,8 +61,7 @@ class Scoreboard:
     def _load_record(self) -> int:
         """Загружает рекорд из скрытой папки данных."""
         try:
-            data_dir = get_data_path()
-            path = Path(data_dir) / self.RECORD_FILE
+            path = Path(get_data_path()) / self.RECORD_FILE
             if not path.exists():
                 return 0
             content = path.read_text().strip()
@@ -70,13 +72,11 @@ class Scoreboard:
     def _save_record(self, score: int) -> None:
         """Сохраняет рекорд в скрытую папку данных."""
         try:
-            data_dir = get_data_path()
-            path = Path(data_dir) / self.RECORD_FILE
+            path = Path(get_data_path()) / self.RECORD_FILE
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(str(score))
         except OSError:
             pass
-
 
     @staticmethod
     def _format(number: int) -> str:
@@ -84,11 +84,11 @@ class Scoreboard:
         return f"{number:,}"
 
     def _render(self, text: str, position: tuple, anchor: str):
-        """
-        Рендерит текст и возвращает изображение с прямоугольником.
+        """Рендерит текст и возвращает изображение с прямоугольником.
+
         anchor: topleft, topright, centerx, center
         """
-        image = self.font.render(text, True, self.TEXT_COLOR, self.settings.bg_color)
+        image = self.font.render(text, True, TEXT_COLOR, self.settings.bg_color)
         rect = image.get_rect()
 
         x, y = position
@@ -102,6 +102,12 @@ class Scoreboard:
 
         return image, rect
 
+    def _invalidate_caches(self):
+        """Сбрасывает все кэши — для перерендера."""
+        self._last_score = -1
+        self._last_level = -1
+        self._last_record = -1
+
     def _update_ships(self):
         """Обновляет отображение оставшихся кораблей."""
         if self.stats.ships_left == self._last_ships:
@@ -112,72 +118,74 @@ class Scoreboard:
 
         for i in range(self.stats.ships_left):
             ship = self._ship_factory()
-            ship.rect.x = self.SHIP_SPACING + i * (ship.rect.width + self.SHIP_SPACING)
+            ship.rect.x = SHIP_SPACING + i * (ship.rect.width + SHIP_SPACING)
             ship.rect.y = 10
             self.ships.add(ship)
 
     def check_record(self) -> bool:
-        """
-        Проверяет и обновляет рекорд.
-        Возвращает True, если рекорд побит.
-        """
+        """Проверяет и обновляет рекорд. True — если рекорд побит."""
         if self.stats.score <= self.record:
             return False
 
         self.record = self.stats.score
         self._save_record(self.record)
 
-        # Показываем сообщение только если есть существующий рекорд
         if self.has_record and not self.new_record:
             self.new_record = True
             self.rm_cur = False
 
-        self.last_score = -1
+        self._last_score = -1
+        self._last_record = -1
         return True
 
     def reset(self):
         """Сбрасывает состояние для новой игры."""
         self.new_record = False
         self.rm_cur = False
-        self.last_score = -1
-        self._last_level = -1
         self._last_ships = -1
         self.ships.empty()
+        self._invalidate_caches()
 
-        # Перезагружаем рекорд
         self.record = self._load_record()
         self.has_record = self.record > 0
 
     def draw(self):
         """Отрисовывает все элементы на экране."""
-        # Счет
-        if self.stats.score != self.last_score:
-            self.last_score = self.stats.score
+        # Смена цвета фона → все кэши невалидны
+        if self.settings.bg_color != self._last_bg_color:
+            self._last_bg_color = self.settings.bg_color
+            self._invalidate_caches()
+
+        # Счёт
+        if self.stats.score != self._last_score:
+            self._last_score = self.stats.score
             self.score_image, self.score_rect = self._render(
                 self._format(self.stats.score),
-                (self.screen_rect.right - self.SCORE_RIGHT_OFFSET, self.SCORE_TOP),
-                'topright'
+                (self.screen_rect.right - SCORE_RIGHT_OFFSET, SCORE_TOP),
+                'topright',
             )
 
         # Рекорд
-        self.record_image, self.record_rect = self._render(
-            self._format(self.record),
-            (self.screen_rect.centerx, self.SCORE_TOP),
-            'centerx'
-        )
+        if self.record != self._last_record:
+            self._last_record = self.record
+            self.record_image, self.record_rect = self._render(
+                self._format(self.record),
+                (self.screen_rect.centerx, SCORE_TOP),
+                'centerx',
+            )
 
         # Уровень
         if self.settings.level != self._last_level:
             self._last_level = self.settings.level
             self.level_image, self.level_rect = self._render(
                 str(self.settings.level),
-                (self.screen_rect.right - self.SCORE_RIGHT_OFFSET, self.SCORE_TOP + 50),
-                'topright'
+                (self.screen_rect.right - SCORE_RIGHT_OFFSET,
+                 SCORE_TOP + SCORE_LINE_HEIGHT),
+                'topright',
             )
 
         # Сообщение о новом рекорде
         if self.new_record:
-            # Звук воспроизводим только один раз
             if self.record_sound and not self.rm_cur:
                 self.rm_cur = True
                 try:
@@ -188,14 +196,15 @@ class Scoreboard:
             msg_image, msg_rect = self._render(
                 "NEW RECORD!",
                 (self.screen_rect.centerx, self.record_rect.bottom + 10),
-                'centerx'
+                'centerx',
             )
             self.screen.blit(msg_image, msg_rect)
 
         # Отрисовка
         if self.score_image:
             self.screen.blit(self.score_image, self.score_rect)
-        self.screen.blit(self.record_image, self.record_rect)
+        if self.record_image:
+            self.screen.blit(self.record_image, self.record_rect)
         if self.level_image:
             self.screen.blit(self.level_image, self.level_rect)
 

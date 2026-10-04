@@ -36,6 +36,7 @@ def get_data_path() -> str:
     os.makedirs(data_dir, exist_ok=True)
     return data_dir
 
+
 def load_config() -> dict:
     """Загружает конфигурацию игры из JSON."""
     try:
@@ -72,3 +73,23 @@ def load_font(size: int, font_relative_path: str = "dop_fails/fonts/font.ttf"):
         return pygame.font.Font(resource_path(font_relative_path), size)
     except (FileNotFoundError, pygame.error, OSError):
         return pygame.font.Font(None, size)
+
+def create_placeholder_image(size: tuple[int, int],
+                             color: tuple[int, int, int] = (128, 128, 128),
+                             text: str = "No image"):
+    """Создаёт Surface-заглушку с текстом.
+
+    Используется, когда ресурс-картинка не найдена.
+    Импорт pygame — локальный, чтобы utils оставался лёгким.
+    """
+    import pygame
+
+    width, height = size
+    placeholder = pygame.Surface(size)
+    placeholder.fill(color)
+
+    font = pygame.font.Font(None, 20)
+    text_surf = font.render(text, True, (255, 255, 255))
+    text_rect = text_surf.get_rect(center=(width // 2, height // 2))
+    placeholder.blit(text_surf, text_rect)
+    return placeholder

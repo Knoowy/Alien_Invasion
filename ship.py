@@ -1,7 +1,8 @@
 import pygame
 import os
 from pygame.sprite import Sprite
-from utils import resource_path
+from utils import resource_path, create_placeholder_image
+
 
 class Ship(Sprite):
     """Управляет кораблем игрока."""
@@ -25,7 +26,7 @@ class Ship(Sprite):
         image_path = resource_path('dop_fails/images/ship.bmp')
 
         if not os.path.exists(image_path):
-            return self._create_placeholder(default_size, default_color)
+            return create_placeholder_image(default_size, default_color)
 
         try:
             image = pygame.image.load(image_path)
@@ -36,18 +37,7 @@ class Ship(Sprite):
 
             return image.convert()
         except pygame.error:
-            return self._create_placeholder(default_size, default_color)
-
-    def _create_placeholder(self, size, color):
-        """Создает изображение-заглушку."""
-        width, height = size
-        placeholder = pygame.Surface(size)
-        placeholder.fill(color)
-        font = pygame.font.Font(None, 20)
-        text = font.render("No image", True, (255, 255, 255))
-        text_rect = text.get_rect(center=(width // 2, height // 2))
-        placeholder.blit(text, text_rect)
-        return placeholder
+            return create_placeholder_image(default_size, default_color)
 
     def center_ship(self):
         """Центрирует корабль на экране."""

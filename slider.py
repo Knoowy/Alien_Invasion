@@ -1,5 +1,7 @@
 import pygame
 from utils import load_font
+from style import FONT_SIZE_SLIDER
+
 
 class Slider:
     """Ползунок для настройки значения (от min_val до max_val)."""
@@ -14,7 +16,7 @@ class Slider:
         self.dragging = False
         self.handle_radius = 12
         # Отдельный шрифт для подписи (меньше основного)
-        self.label_font = load_font(18)
+        self.label_font = load_font(FONT_SIZE_SLIDER)
 
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""
@@ -55,7 +57,7 @@ class Slider:
             self.handle_radius * 2,
         )
 
-    def draw(self, screen, font):
+    def draw(self, screen):
         """Рисует ползунок."""
         rgb_color = (255, 255, 255)
         # Буква "R" — на фиксированной позиции, не двигается

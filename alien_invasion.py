@@ -19,7 +19,14 @@ from bullet import Bullet
 from alien import Alien
 from slider import Slider
 from starfield import StarField
-from utils import resource_path
+from utils import resource_path, load_font
+from style import (
+    TEXT_COLOR,
+    FLEET_TOP_OFFSET,
+    FLEET_ROWS_BELOW,
+    FONT_SIZE_LARGE,
+    INSTRUCTIONS,
+)
 
 
 class AlienInvasion:
@@ -35,7 +42,6 @@ class AlienInvasion:
             logging.warning(f"Аудио недоступно: {e}")
             self.audio_enabled = False
 
-        logging.basicConfig(level=logging.INFO)
         logging.info("Инициализация игры")
 
         self._setup_display()
@@ -97,7 +103,7 @@ class AlienInvasion:
         self.respawn_timer = 0.0
         self.RESPAWN_DURATION = 0.5
 
-    def run_game(self):
+    def run_game(self) -> None:
         """Запускает главный игровой цикл."""
         logging.info("Запуск игры")
         self._toggle_background_music(True)
@@ -107,7 +113,7 @@ class AlienInvasion:
 
         while True:
             try:
-                dt = min(self.clock.tick(240) / 1000.0, 0.05)
+                dt = min(self.clock.tick(120) / 1000.0, 0.05)
                 
                 self._check_events()
 
@@ -245,13 +251,7 @@ class AlienInvasion:
 
     def _init_text_rendering(self):
         """Инициализирует настройки рендеринга текста."""
-        font_path = resource_path("dop_fails/fonts/font.ttf")
-        try:
-            self.font = pygame.font.Font(font_path, 32)
-        except (FileNotFoundError, pygame.error, OSError) as e:
-            logging.warning(f"⚠️ He удалось загрузить {font_path}: {e}")
-            logging.warning("   Использую стандартный шрифт Pygame")
-            self.font = pygame.font.Font(None, 32)
+        self.font = load_font(FONT_SIZE_LARGE)
         self.text_cache = {}
 
     def _init_sounds(self):
@@ -279,26 +279,30 @@ class AlienInvasion:
         except (FileNotFoundError, pygame.error) as e:
             logging.warning(f"Не удалось загрузить звуковые эффекты: {e}")
 
+    def _play_sound(self, sound):
+        """Безопасно воспроизводит звук.
+
+        sound может быть None (если ресурс не загрузился) —
+        в этом случае ничего не делает."""
+
+        if sound is None:
+            return
+        try:
+            sound.play()
+        except pygame.error as e:
+            logging.warning(f"Ошибка воспроизведения звука: {e}")
+
     def _preload_instructions(self):
         """Предварительно рендерит инструкции для производительности."""
-        instructions = {
-            'ad': "A / D or arrows - left / right",
-            'fire': "Space or Lbm - fire",
-            'pause': "P - pause",
-            'escape': "Escape - quit",
-            'music': "M - music",
-            'restart': "R - restart"
-        }
-
         y_position = self.play_button.rect.y - 100
-        for key, text in instructions.items():
-            text_image = self.font.render(text, True, self.sb.TEXT_COLOR)
+        for i, text in enumerate(INSTRUCTIONS):
+            text_image = self.font.render(text, True, TEXT_COLOR)
             text_rect = text_image.get_rect()
             text_rect.centerx = int(self.screen_rect.centerx * 0.5)
             text_rect.top = y_position
-            self.text_cache[key] = {
+            self.text_cache[i] = {
                 'image': text_image,
-                'rect': text_rect
+                'rect': text_rect,
             }
             y_position += 50
 
@@ -395,7 +399,7 @@ class AlienInvasion:
 
         # 6. Ползунки
         for slider in self.color_sliders:
-            slider.draw(self.screen, self.font)
+            slider.draw(self.screen)
 
     def _check_events(self):
         """Обрабатывает нажатия клавиш и события мыши."""
@@ -421,7 +425,7 @@ class AlienInvasion:
                 if event.button == 1 and self.game_active and not self.pause and self.respawn_timer <= 0:
                     self._fire_bullet()
 
-    def _quit_game(self):
+    def _quit_game(self) -> None:
         """Корректно завершает игру и сохраняет настройки."""
         try:
             self.settings.save()
@@ -482,7 +486,7 @@ class AlienInvasion:
             if not self.pause:
                 self.ship.moving_left = True
                 
-        #ПРОПУСК ГИПЕРПРЫЖКА ПО ПРОБЕЛУ
+        # ПРОПУСК ГИПЕРПРЫЖКА ПО ПРОБЕЛУ
         elif event.key == pygame.K_SPACE and self.transition:
             # Мгновенно завершаем переход
             self.transition = False
@@ -545,11 +549,7 @@ class AlienInvasion:
         if len(self.bullets) < int(self.settings.bullets_allowed):
             new_bullet = Bullet(self)
             self.bullets.add(new_bullet)
-            if self.fire_music is not None:
-                try:
-                    self.fire_music.play()
-                except pygame.error as e:
-                    logging.warning(f"Ошибка при воспроизведении звука выстрела: {e}")
+            self._play_sound(self.fire_music)
 
     def _update_bullets(self, dt):
         """Обновляет позиции пуль и удаляет старые."""
@@ -593,12 +593,8 @@ class AlienInvasion:
             self.bullets.empty()
             self.settings.increase_speed()
             self.settings.level += 1
+            self._play_sound(self.create_alien_music)
 
-            if self.create_alien_music is not None:
-                try:
-                    self.create_alien_music.play()
-                except pygame.error as e:
-                    logging.warning(f"Ошибка при воспроизведении звука: {e}")
         except Exception as e:
             logging.error(f"Ошибка при переходе на новый уровень: {e}")
 
@@ -611,22 +607,14 @@ class AlienInvasion:
             self.aliens.empty()
 
             self._create_fleet()
-            if self.create_alien_music is not None:
-                try:
-                    self.create_alien_music.play()
-                except pygame.error as e:
-                    logging.warning(f"Ошибка при воспроизведении звука: {e}")
+            self._play_sound(self.create_alien_music)
 
             self.ship.center_ship()
             self.respawn_timer = self.RESPAWN_DURATION
 
         else:
             self._restart_game()
-            if self.over_music is not None:
-                try:
-                    self.over_music.play()
-                except pygame.error as e:
-                    logging.warning(f"Ошибка при воспроизведении звука: {e}")
+            self._play_sound(self.over_music)
 
     def _check_aliens_bottom(self):
         """Проверяет, достигли ли пришельцы нижней границы экрана."""
@@ -642,11 +630,9 @@ class AlienInvasion:
             alien_width, alien_height = alien.rect.size
 
             current_x = alien_width
-            current_y = alien_height + self.sb.FLEET_TOP_OFFSET
+            current_y = alien_height + FLEET_TOP_OFFSET
 
-            rows_below = 6
-
-            while current_y < (self.screen_rect.height - rows_below * alien_height):
+            while current_y < (self.screen_rect.height - FLEET_ROWS_BELOW * alien_height):
                 while current_x < (self.screen_rect.width - 2 * alien_width):
                     self._create_alien(current_x, current_y)
                     current_x += alien_width + alien_width * self.settings.distance_multiplier
@@ -696,10 +682,10 @@ class AlienInvasion:
             self.sb.draw()
 
             if self.pause:
-                pause_text = self.sb.font.render(
+                pause_text = self.font.render(
                     "Press 'p' to continue",
                     True,
-                    self.sb.TEXT_COLOR,
+                    TEXT_COLOR,
                     self.settings.bg_color
                 )
                 pause_rect = pause_text.get_rect()
@@ -723,5 +709,6 @@ class AlienInvasion:
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
     ai = AlienInvasion()
     ai.run_game()
