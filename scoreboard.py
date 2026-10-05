@@ -1,16 +1,17 @@
-import pygame
-from pygame.sprite import Group
 from pathlib import Path
 
-from utils import get_data_path, load_font, resource_path
+import pygame
+from pygame.sprite import Group
+
 from style import (
-    TEXT_COLOR,
     FONT_SIZE_LARGE,
-    SCORE_TOP,
-    SCORE_RIGHT_OFFSET,
     SCORE_LINE_HEIGHT,
+    SCORE_RIGHT_OFFSET,
+    SCORE_TOP,
     SHIP_SPACING,
+    TEXT_COLOR,
 )
+from utils import get_data_path, load_font, resource_path
 
 
 class Scoreboard:
@@ -93,10 +94,10 @@ class Scoreboard:
 
         x, y = position
         anchors = {
-            'topleft': (x, y),
-            'topright': (x - rect.width, y),
-            'centerx': (x - rect.width // 2, y),
-            'center': (x - rect.width // 2, y - rect.height // 2),
+            "topleft": (x, y),
+            "topright": (x - rect.width, y),
+            "centerx": (x - rect.width // 2, y),
+            "center": (x - rect.width // 2, y - rect.height // 2),
         }
         rect.x, rect.y = anchors.get(anchor, (x, y))
 
@@ -162,7 +163,7 @@ class Scoreboard:
             self.score_image, self.score_rect = self._render(
                 self._format(self.stats.score),
                 (self.screen_rect.right - SCORE_RIGHT_OFFSET, SCORE_TOP),
-                'topright',
+                "topright",
             )
 
         # Рекорд
@@ -171,7 +172,7 @@ class Scoreboard:
             self.record_image, self.record_rect = self._render(
                 self._format(self.record),
                 (self.screen_rect.centerx, SCORE_TOP),
-                'centerx',
+                "centerx",
             )
 
         # Уровень
@@ -179,9 +180,11 @@ class Scoreboard:
             self._last_level = self.settings.level
             self.level_image, self.level_rect = self._render(
                 str(self.settings.level),
-                (self.screen_rect.right - SCORE_RIGHT_OFFSET,
-                 SCORE_TOP + SCORE_LINE_HEIGHT),
-                'topright',
+                (
+                    self.screen_rect.right - SCORE_RIGHT_OFFSET,
+                    SCORE_TOP + SCORE_LINE_HEIGHT,
+                ),
+                "topright",
             )
 
         # Сообщение о новом рекорде
@@ -196,7 +199,7 @@ class Scoreboard:
             msg_image, msg_rect = self._render(
                 "NEW RECORD!",
                 (self.screen_rect.centerx, self.record_rect.bottom + 10),
-                'centerx',
+                "centerx",
             )
             self.screen.blit(msg_image, msg_rect)
 

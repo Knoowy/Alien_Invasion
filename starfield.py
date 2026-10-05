@@ -1,5 +1,6 @@
-import pygame
 import random
+
+import pygame
 
 
 class Star:
@@ -34,12 +35,10 @@ class Star:
 
         # Шлейф появляется ТОЛЬКО при ускорении (speed_multiplier > 1.0)
         boost = max(0.0, speed_multiplier - 1.0)
-        
+
         trail_length = int(self.speed * boost * 0.03)
         if trail_length <= 3:
-            pygame.draw.circle(
-                screen, color,
-                (int(self.x), int(self.y)), self.size)
+            pygame.draw.circle(screen, color, (int(self.x), int(self.y)), self.size)
         else:
             # Линия (эффект гиперпрыжка)
             start = (int(self.x), int(self.y) - trail_length)
@@ -47,15 +46,13 @@ class Star:
             width = 1 if self.size == 1 else self.size - 1
             pygame.draw.line(screen, color, start, end, width)
 
+
 class StarField:
     """Набор звёзд — целое звёздное небо."""
 
     def __init__(self, screen_width, screen_height, count=120):
-        self.stars = [
-            Star(screen_width, screen_height)
-            for _ in range(count)
-        ]
-        self.speed_multiplier = 1.0   # множитель для гиперпрыжка
+        self.stars = [Star(screen_width, screen_height) for _ in range(count)]
+        self.speed_multiplier = 1.0  # множитель для гиперпрыжка
 
     def update(self, dt):
         for star in self.stars:

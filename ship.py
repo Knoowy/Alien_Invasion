@@ -1,7 +1,9 @@
-import pygame
 import os
+
+import pygame
 from pygame.sprite import Sprite
-from utils import resource_path, create_placeholder_image
+
+from utils import create_placeholder_image, resource_path
 
 
 class Ship(Sprite):
@@ -23,7 +25,7 @@ class Ship(Sprite):
 
     def _load_image(self, default_size=(60, 60), default_color=(128, 128, 128)):
         """Загружает изображение корабля или создает заглушку."""
-        image_path = resource_path('dop_fails/images/ship.bmp')
+        image_path = resource_path("dop_fails/images/ship.bmp")
 
         if not os.path.exists(image_path):
             return create_placeholder_image(default_size, default_color)

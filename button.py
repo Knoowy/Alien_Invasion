@@ -1,7 +1,9 @@
-import pygame
 import time
-from utils import load_font
+
+import pygame
+
 from style import FONT_SIZE_LARGE
+from utils import load_font
 
 
 class Button:
@@ -19,7 +21,7 @@ class Button:
 
     # Блик
     SHINE_DURATION = 1
-    SHINE_PAUSE = 1.2         
+    SHINE_PAUSE = 1.2
     SHINE_WIDTH = 60
     SHINE_PEAK_ALPHA = 100
 
@@ -52,8 +54,10 @@ class Button:
             dist = abs(x - half) / half
             alpha = int(self.SHINE_PEAK_ALPHA * (1 - dist) ** 2)
             pygame.draw.line(
-                shine, (255, 255, 255, alpha),
-                (x, 0), (x, self.height),
+                shine,
+                (255, 255, 255, alpha),
+                (x, 0),
+                (x, self.height),
             )
 
         return shine
@@ -106,8 +110,10 @@ class Button:
         border_alpha = self.BORDER_ALPHA_HOVER if self.hovered else self.BORDER_ALPHA
         border = pygame.Surface(rect.size, pygame.SRCALPHA)
         pygame.draw.rect(
-            border, (255, 255, 255, border_alpha),
-            border.get_rect(), 1,
+            border,
+            (255, 255, 255, border_alpha),
+            border.get_rect(),
+            1,
         )
         self.screen.blit(border, rect.topleft)
 

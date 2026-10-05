@@ -1,6 +1,7 @@
 import pygame
-from utils import load_font
+
 from style import FONT_SIZE_SLIDER
+from utils import load_font
 
 
 class Slider:
@@ -21,8 +22,9 @@ class Slider:
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            if self._handle_rect().collidepoint(event.pos) or \
-                    self.rect.inflate(0, 20).collidepoint(event.pos):
+            if self._handle_rect().collidepoint(event.pos) or self.rect.inflate(
+                0, 20
+            ).collidepoint(event.pos):
                 self.dragging = True
                 self._update_from_pos(event.pos[0])
                 return True
@@ -63,14 +65,14 @@ class Slider:
         # Буква "R" — на фиксированной позиции, не двигается
         letter_surf = self.label_font.render(self.label, True, rgb_color)
         letter_rect = letter_surf.get_rect()
-        letter_rect.left = self.rect.x - 80       # фиксированный отступ
+        letter_rect.left = self.rect.x - 80  # фиксированный отступ
         letter_rect.centery = self.rect.centery
         screen.blit(letter_surf, letter_rect)
 
         # Число — прижато правым краем, растёт влево
         value_surf = self.label_font.render(str(self.value), True, rgb_color)
         value_rect = value_surf.get_rect()
-        value_rect.right = self.rect.x - 20       # ← фиксируем ПРАВЫЙ край
+        value_rect.right = self.rect.x - 20  # ← фиксируем ПРАВЫЙ край
         value_rect.centery = self.rect.centery
         screen.blit(value_surf, value_rect)
 
@@ -80,10 +82,16 @@ class Slider:
         # Заполненная часть
         filled_width = self._handle_x() - self.rect.x
         if filled_width > 0:
-            filled = pygame.Rect(self.rect.x, self.rect.y, filled_width, self.rect.height)
+            filled = pygame.Rect(
+                self.rect.x, self.rect.y, filled_width, self.rect.height
+            )
             pygame.draw.rect(screen, self.color, filled, border_radius=4)
 
         # Ручка
         hx = self._handle_x()
-        pygame.draw.circle(screen, (240, 240, 240), (hx, self.rect.centery), self.handle_radius)
-        pygame.draw.circle(screen, (30, 30, 30), (hx, self.rect.centery), self.handle_radius, 2)
+        pygame.draw.circle(
+            screen, (240, 240, 240), (hx, self.rect.centery), self.handle_radius
+        )
+        pygame.draw.circle(
+            screen, (30, 30, 30), (hx, self.rect.centery), self.handle_radius, 2
+        )

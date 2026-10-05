@@ -5,22 +5,22 @@ class Settings:
     """Хранит все настройки игры."""
 
     # ─── Константы баланса ────────────────────────────────────────
-    DISTANCE_MAX = 5.0              # предел множителя расстояния во флоте
-    POINTS_SOFT_CAP = 1488          # до этого порога очки растут быстро
-    POINTS_GROWTH_FAST = 1.5        # множитель очков ниже порога
-    POINTS_GROWTH_SLOW = 1.005      # множитель очков выше порога
-    BULLETS_MAX = 12                # предел одновременных пуль
+    DISTANCE_MAX = 5.0  # предел множителя расстояния во флоте
+    POINTS_SOFT_CAP = 1488  # до этого порога очки растут быстро
+    POINTS_GROWTH_FAST = 1.5  # множитель очков ниже порога
+    POINTS_GROWTH_SLOW = 1.005  # множитель очков выше порога
+    BULLETS_MAX = 12  # предел одновременных пуль
 
     # ─── Фазы сложности (по уровню) ───────────────────────────────
-    PHASE_1_END = 30                # до 30 — плавный рост alien_speed
-    PHASE_2_END = 60                # до 60 — рост ресурсов игрока
+    PHASE_1_END = 30  # до 30 — плавный рост alien_speed
+    PHASE_2_END = 60  # до 60 — рост ресурсов игрока
 
     def __init__(self):
         # Загружаем сохранённый цвет фона
         config = load_config()
-        r = config.get('bg_r', 10)
-        g = config.get('bg_g', 10)
-        b = config.get('bg_b', 70)
+        r = config.get("bg_r", 10)
+        g = config.get("bg_g", 10)
+        b = config.get("bg_b", 70)
 
         # Цвет фона (значения ограничены 0–255)
         self.bg_color = (
@@ -83,9 +83,7 @@ class Settings:
             self.alien_speed *= 1.05
         elif self.level < self.PHASE_2_END:
             # Фаза 2: игроку больше ресурсов, пришельцы растут мягче
-            self.bullets_allowed = min(
-                self.bullets_allowed + 1, self.BULLETS_MAX
-            )
+            self.bullets_allowed = min(self.bullets_allowed + 1, self.BULLETS_MAX)
             self.bullet_speed += 50
             self.alien_speed *= 1.03
             self.ship_speed += 120
@@ -100,8 +98,10 @@ class Settings:
 
     def save(self) -> None:
         """Сохраняет настройки в config.json."""
-        save_config({
-            'bg_r': self.bg_color[0],
-            'bg_g': self.bg_color[1],
-            'bg_b': self.bg_color[2],
-        })
+        save_config(
+            {
+                "bg_r": self.bg_color[0],
+                "bg_g": self.bg_color[1],
+                "bg_b": self.bg_color[2],
+            }
+        )

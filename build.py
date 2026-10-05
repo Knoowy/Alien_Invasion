@@ -7,14 +7,13 @@ import sys
 
 from utils import get_data_path
 
-
 # ──────────────────────────────────────────────────────────────────
 # Константы
 # ──────────────────────────────────────────────────────────────────
-EXE_NAME = 'AlienInvasion'
-EXE_EXT = '.exe' if sys.platform == 'win32' else ''
-ICON_PATH = 'dop_fails/images/ai_ico.ico'
-SPEC_FILE = f'{EXE_NAME}.spec'
+EXE_NAME = "AlienInvasion"
+EXE_EXT = ".exe" if sys.platform == "win32" else ""
+ICON_PATH = "dop_fails/images/ai_ico.ico"
+SPEC_FILE = f"{EXE_NAME}.spec"
 
 
 # ──────────────────────────────────────────────────────────────────
@@ -47,7 +46,7 @@ def clean_build() -> None:
         print(f"🗑️  Удалены данные игры: {data_dir}")
 
     # 2. Артефакты сборки
-    targets = ['build', 'dist', '__pycache__', SPEC_FILE]
+    targets = ["build", "dist", "__pycache__", SPEC_FILE]
     for target in targets:
         if os.path.exists(target):
             if os.path.isdir(target):
@@ -61,7 +60,7 @@ def cleanup_after_build() -> None:
     """Убирает временные файлы и переносит готовый билд в корень проекта."""
     print("\n🧹 Очистка временных файлов...")
 
-    for target in ('build', '__pycache__'):
+    for target in ("build", "__pycache__"):
         if os.path.exists(target):
             _safe_rmtree(target)
             print(f"🗑️  Удалена папка: {target}")
@@ -70,8 +69,8 @@ def cleanup_after_build() -> None:
         _safe_remove(SPEC_FILE)
         print(f"🗑️  Удалён файл: {SPEC_FILE}")
 
-    exe_src = os.path.join('dist', f'{EXE_NAME}{EXE_EXT}')
-    exe_dst = f'{EXE_NAME}{EXE_EXT}'
+    exe_src = os.path.join("dist", f"{EXE_NAME}{EXE_EXT}")
+    exe_dst = f"{EXE_NAME}{EXE_EXT}"
 
     if os.path.exists(exe_src):
         if os.path.exists(exe_dst):
@@ -80,8 +79,8 @@ def cleanup_after_build() -> None:
         print(f"📦 Готовый файл: {exe_dst}")
 
     # Папка dist уже пуста? — удаляем
-    if os.path.exists('dist') and not os.listdir('dist'):
-        _safe_rmtree('dist')
+    if os.path.exists("dist") and not os.listdir("dist"):
+        _safe_rmtree("dist")
         print("🗑️  Удалена папка: dist")
 
 
@@ -109,46 +108,51 @@ def build() -> None:
 
     # Иконка (только Windows)
     icon_arg = []
-    if sys.platform == 'win32':
+    if sys.platform == "win32":
         if os.path.exists(ICON_PATH):
-            icon_arg = ['--icon', ICON_PATH]
+            icon_arg = ["--icon", ICON_PATH]
         else:
             print(f"⚠️  Иконка не найдена: {ICON_PATH} — собираю без иконки.")
     else:
         print("ℹ️  Иконка для одного файла поддерживается только на Windows.")
 
-    if not os.path.exists('dop_fails'):
+    if not os.path.exists("dop_fails"):
         print("⚠️  Папка dop_fails не найдена — ресурсы не попадут в сборку!")
 
-    if not os.path.exists('alien_invasion.py'):
+    if not os.path.exists("alien_invasion.py"):
         print("❌ Не найден alien_invasion.py — нечего собирать.")
         sys.exit(1)
 
     # Разделитель для --add-data: ';' на Windows, ':' на остальных
-    sep = ';' if sys.platform == 'win32' else ':'
+    sep = ";" if sys.platform == "win32" else ":"
 
     cmd = [
-        sys.executable, '-m', 'PyInstaller',   # тот же Python, что запустил build.py
-        '--onefile',
-        '--windowed',
-        '--name', EXE_NAME,
-        '--add-data', f'dop_fails{sep}dop_fails',
-        '--log-level', 'WARN',   # ← только WARNING и ERROR
-        '--noconfirm', 
+        sys.executable,
+        "-m",
+        "PyInstaller",  # тот же Python, что запустил build.py
+        "--onefile",
+        "--windowed",
+        "--name",
+        EXE_NAME,
+        "--add-data",
+        f"dop_fails{sep}dop_fails",
+        "--log-level",
+        "WARN",  # ← только WARNING и ERROR
+        "--noconfirm",
         *icon_arg,
-        'alien_invasion.py',
-        ]
+        "alien_invasion.py",
+    ]
 
     print("\n🔧 Команда сборки:")
-    print(' '.join(cmd))
+    print(" ".join(cmd))
     print("\n⏳ Сборка может занять несколько минут...\n")
 
     # Подавляем приветствие pygame в подпроцессах PyInstaller
     env = os.environ.copy()
-    env['PYGAME_HIDE_SUPPORT_PROMPT'] = '1'
+    env["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 
     try:
-        result = subprocess.run(cmd, env=env)
+        result = subprocess.run(cmd, env=env, check=False)
     except FileNotFoundError:
         print("\n❌ Не удалось запустить PyInstaller.")
         print(f"   Команда: {sys.executable} -m PyInstaller")
@@ -156,7 +160,7 @@ def build() -> None:
     except KeyboardInterrupt:
         print("\n⏹️  Сборка прервана пользователем.")
         sys.exit(1)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — запуск внешнего процесса, ловим всё
         print(f"\n❌ Неожиданная ошибка при запуске: {e}")
         sys.exit(1)
 
@@ -171,5 +175,5 @@ def build() -> None:
         sys.exit(result.returncode)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     build()
