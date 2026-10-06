@@ -7,6 +7,9 @@ __pycache__/
 venv/
 env/
 
+# Ruff
+.ruff_cache/
+
 # PyInstaller
 build/
 dist/
@@ -27,6 +30,6 @@ Thumbs.db
 logs/
 *.log
 
-# Локальные данные игры (не публикуем рекорд)
+# Локальные данные игры (не публикуем рекорд и настройки)
 record.txt
 config.json
