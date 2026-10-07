@@ -88,6 +88,7 @@ class AlienInvasion:
         self.transition = False
         self.transition_start_time = 0
         self.TRANSITION_DURATION = 1.0  # секунд
+        self._transition_callback = None
 
         # Fade-in игры после гиперпрыжка
         self.fade_in = False
@@ -128,7 +129,7 @@ class AlienInvasion:
                     self.respawn_timer -= dt
                     if self.respawn_timer < 0:
                         self.respawn_timer = 0.0
-                elif self.game_active and not self.pause:
+                elif self.game_active and not self.pause and not self.transition:
                     self.ship.update(dt)
                     self._update_bullets(dt)
                     self._update_aliens(dt)
@@ -160,40 +161,59 @@ class AlienInvasion:
                 time.sleep(0.05)
 
     def _transition(self):
-        """Переход в игру: разгон → пик → торможение + затемнение."""
-        if self.transition:
-            elapsed = time.time() - self.transition_start_time
-            progress = min(elapsed / self.TRANSITION_DURATION, 1.0)
-
-            # Фаза 1: РАЗГОН (0.0 → 0.35) — 1.0 → 8.0
-            if progress < 0.35:
-                phase = progress / 0.35
-                self.starfield.speed_multiplier = 1.0 + phase * 7.0
-                self._overlay_alpha = 0
-
-            # Фаза 2: ПИК (0.35 → 0.65) — держим 8.0
-            elif progress < 0.65:
-                self.starfield.speed_multiplier = 8.0
-                self._overlay_alpha = 0
-
-            # Фаза 3: ТОРМОЖЕНИЕ + ЗАТЕМНЕНИЕ (0.65 → 1.0)
-            else:
-                phase = (progress - 0.65) / 0.35  # 0 → 1
-                ease = (1.0 - phase) ** 2
-                self.starfield.speed_multiplier = 1.0 + ease * 7.0
-                self._overlay_alpha = int(255 * phase)
-
-            # Переход завершён — стартуем игру
-            if progress >= 1.0:
-                self.transition = False
-                self.starfield.speed_multiplier = 1.0
-                self._overlay_alpha = 255
-                self._reset_game()
-
-                self.fade_in = True
-                self.fade_in_start_time = time.time()
-        else:
+        """Переход-гиперпрыжок: разгон → пик → торможение + затемнение."""
+        if not self.transition:
             self.starfield.speed_multiplier = 1.0
+            return
+
+        elapsed = time.time() - self.transition_start_time
+        progress = min(elapsed / self.TRANSITION_DURATION, 1.0)
+
+        # Фаза 1: РАЗГОН (0.0 → 0.35) — 1.0 → 8.0
+        if progress < 0.35:
+            phase = progress / 0.35
+            self.starfield.speed_multiplier = 1.0 + phase * 7.0
+            self._overlay_alpha = 0
+
+        # Фаза 2: ПИК (0.35 → 0.65) — держим 8.0
+        elif progress < 0.65:
+            self.starfield.speed_multiplier = 8.0
+            self._overlay_alpha = 0
+
+        # Фаза 3: ТОРМОЖЕНИЕ + ЗАТЕМНЕНИЕ (0.65 → 1.0)
+        else:
+            phase = (progress - 0.65) / 0.35
+            ease = (1.0 - phase) ** 2
+            self.starfield.speed_multiplier = 1.0 + ease * 7.0
+            self._overlay_alpha = int(255 * phase)
+
+        # Переход завершён
+        if progress >= 1.0:
+            self._finish_transition()
+
+    def _start_transition(self, callback=None):
+        """Запускает эффект гиперпрыжка.
+
+        callback — функция без аргументов, вызывается по завершении эффекта.
+        Если callback is None — просто продолжается игра.
+        """
+        self.transition = True
+        self.transition_start_time = time.time()
+        self._transition_callback = callback
+
+    def _finish_transition(self):
+        """Завершает переход: сбрасывает флаги, вызывает callback, запускает fade-in."""
+        self.transition = False
+        self.starfield.speed_multiplier = 1.0
+        self._overlay_alpha = 255
+
+        callback = self._transition_callback
+        self._transition_callback = None
+        if callback is not None:
+            callback()
+
+        self.fade_in = True
+        self.fade_in_start_time = time.time()
 
     def _fade_in(self):
         """Fade-in игры: overlay alpha 255 → 0."""
@@ -498,9 +518,7 @@ class AlienInvasion:
         """Запускает новую игру при клике на кнопку Play."""
         button_clicked = self.play_button.rect.collidepoint(mouse_pos)
         if button_clicked and not self.game_active and not self.transition:
-            # Вместо мгновенного старта — запускаем переход
-            self.transition = True
-            self.transition_start_time = time.time()
+            self._start_transition(self._reset_game)
 
     def _reset_game(self):
         """Сбрасывает все настройки и статистику для новой игры."""
@@ -534,15 +552,7 @@ class AlienInvasion:
 
         # ПРОПУСК ГИПЕРПРЫЖКА ПО ПРОБЕЛУ
         elif event.key == pygame.K_SPACE and self.transition:
-            # Мгновенно завершаем переход
-            self.transition = False
-            self.starfield.speed_multiplier = 1.0
-            self._overlay_alpha = 255
-            self._reset_game()
-
-            # Запускаем быстрый fade-in
-            self.fade_in = True
-            self.fade_in_start_time = time.time()
+            self._finish_transition()
 
         elif event.key == pygame.K_SPACE and self.respawn_timer <= 0:
             if self.game_active and not self.pause:
@@ -567,6 +577,10 @@ class AlienInvasion:
 
         self.respawn_timer = 0.0
         self.pause = False
+
+        # Сбрасываем незавершённый переход (если игрок нажал R во время гиперпрыжка)
+        self.transition = False
+        self._transition_callback = None
 
     def _update_mouse(self):
         """Управляет видимостью курсора.
@@ -643,9 +657,9 @@ class AlienInvasion:
             self.settings.increase_speed()
             self.settings.level += 1
             self._play_sound(self.create_alien_music)
-
-        except Exception:  # noqa: BLE001 — защита от любых сбоев
-            logger.error("Ошибка при переходе на новый уровень")
+            self._start_transition()
+        except Exception:
+            logger.exception("Ошибка при переходе на новый уровень")
 
     def _ship_hit(self):
         """Обрабатывает попадание по кораблю."""
@@ -736,7 +750,7 @@ class AlienInvasion:
         # Звёзды — поверх фона, под остальными элементами
         self.starfield.draw(self.screen)
 
-        if self.game_active:
+        if self.game_active and not self.transition:
 
             # Отрисовка игрового поля — всегда
             for bullet in self.bullets.sprites():
