@@ -42,16 +42,23 @@ class Alien(Sprite):
             return create_placeholder_image(default_size, default_color)
 
     def check_edges(self):
-        """Возвращает True, если пришелец достиг края экрана."""
+        """Возвращает True, если пришелец достиг края экрана.
+
+        Проверяется только тот край, к которому движется флот.
+        Это устраняет «двойной drop», когда флот, отскочив от края,
+        из-за погрешности округления продолжает «касаться» его.
+        """
         screen_rect = self.screen.get_rect()
-        return (self.rect.right >= screen_rect.right) or (self.rect.left <= 0)
+        if self.settings.fleet_direction > 0:
+            return self.rect.right >= screen_rect.right
+        return self.rect.left <= 0
 
     def update(self, dt):
         """Перемещает пришельца вправо или влево."""
         self.x += self.settings.alien_speed * self.settings.fleet_direction * dt
-        self.rect.x = int(self.x)
+        self.rect.x = round(self.x)
 
     def drop(self):
         """Опускает пришельца вниз."""
         self.y += self.settings.fleet_drop_speed
-        self.rect.y = int(self.y)
+        self.rect.y = round(self.y)
