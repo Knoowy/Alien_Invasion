@@ -42,6 +42,7 @@ class GameState(Enum):
 class AlienInvasion:
     """Управляет игровыми ресурсами и поведением."""
 
+    # region 1. ИНИЦИАЛИЗАЦИЯ
     def __init__(self):
         pygame.init()
 
@@ -83,6 +84,7 @@ class AlienInvasion:
             ship_factory=lambda: Ship(self),
         )
         self.play_button = Button(self, "Play")
+
         self._init_sounds()
         self._init_text_rendering()
         self._preload_instructions()
@@ -112,6 +114,96 @@ class AlienInvasion:
         self.respawn_timer = 0.0
         self.RESPAWN_DURATION = 0.5
 
+    def _setup_display(self):
+        try:
+            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        except pygame.error as e:
+            logger.warning(f"Не удалось установить полноэкранный режим: {e}")
+            try:
+                display_info = pygame.display.Info()
+                width, height = display_info.current_w, display_info.current_h
+                if width == 0 or height == 0:
+                    raise ValueError("Не удалось получить информацию о дисплее")
+                self.screen = pygame.display.set_mode((width, height))
+            except (pygame.error, ValueError) as e2:
+                logger.critical(f"Критическая ошибка: не удалось создать окно: {e2}")
+                pygame.quit()
+                sys.exit(1)
+        self.screen_rect = self.screen.get_rect()
+
+    def _set_window_icon(self):
+        icon_path = resource_path("dop_fails/images/ai_bmp.bmp")
+        try:
+            icon = pygame.image.load(icon_path)
+            pygame.display.set_icon(icon)
+        except (FileNotFoundError, pygame.error) as e:
+            logger.warning(f"Не удалось загрузить иконку для окна: {e}")
+
+    def _update_settings_for_display(self):
+        self.settings.screen_width = self.screen_rect.width
+        self.settings.screen_height = self.screen_rect.height
+
+    def _init_text_rendering(self):
+        """Инициализирует настройки рендеринга текста."""
+        self.font = load_font(FONT_SIZE_LARGE)
+        self.text_cache = {}
+
+    def _preload_instructions(self):
+        y_position = self.play_button.rect.y - 100
+        for i, text in enumerate(INSTRUCTIONS):
+            text_image = self.font.render(text, True, TEXT_COLOR)
+            text_rect = text_image.get_rect()
+            text_rect.centerx = int(self.screen_rect.centerx * 0.5)
+            text_rect.top = y_position
+            self.text_cache[i] = {"image": text_image, "rect": text_rect}
+            y_position += 50
+
+    def _init_color_sliders(self):
+        panel_w, panel_h = 480, 240
+        panel_x = self.screen_rect.centerx - int(panel_w // 2)
+        panel_y = self.screen_rect.bottom - panel_h - 40
+        self.color_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+
+        label_offset = 100
+        slider_w = panel_w - label_offset - 40
+        r, g, b = self.settings.bg_color
+
+        self.color_sliders = [
+            Slider(
+                panel_x + label_offset,
+                panel_y + 80,
+                slider_w,
+                0,
+                255,
+                r,
+                "R",
+                (220, 60, 60),
+            ),
+            Slider(
+                panel_x + label_offset,
+                panel_y + 140,
+                slider_w,
+                0,
+                255,
+                g,
+                "G",
+                (60, 220, 60),
+            ),
+            Slider(
+                panel_x + label_offset,
+                panel_y + 200,
+                slider_w,
+                0,
+                255,
+                b,
+                "B",
+                (70, 110, 230),
+            ),
+        ]
+
+    # endregion
+
+    # region 2. ГЛАВНЫЙ ЦИКЛ И ВЫХОД
     def run_game(self) -> None:
         """Запускает главный игровой цикл."""
         logger.info("Запуск игры")
@@ -167,18 +259,27 @@ class AlienInvasion:
                     self._quit_game()
                 time.sleep(0.05)
 
+    def _quit_game(self) -> None:
+        try:
+            self.settings.save()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Не удалось сохранить настройки при выходе: {e}")
+        logger.info("Закрытие игры")
+        pygame.quit()
+        sys.exit()
+
+    # endregion
+
+    # region 3. СТЕЙТ-МАШИНА И ПЕРЕХОДЫ
     def _change_state(self, new_state: GameState):
         """Безопасно меняет состояние игры."""
         logger.debug(f"Смена состояния: {self.state.name} -> {new_state.name}")
 
-        # При выходе из PLAYING сбрасываем движение (чтобы корабль не застревал)
         if self.state == GameState.PLAYING and new_state != GameState.PLAYING:
             self.ship.moving_left = False
             self.ship.moving_right = False
 
         self.state = new_state
-
-    # ─── Переходы ────────────────────────────────────────────────
 
     def _start_transition(self, callback=None):
         """Запускает эффект гиперпрыжка."""
@@ -196,7 +297,6 @@ class AlienInvasion:
         if callback is not None:
             callback()
 
-        # После коллбека переводим в PLAYING
         self._change_state(GameState.PLAYING)
 
         self.fade_in = True
@@ -237,42 +337,33 @@ class AlienInvasion:
                 self.fade_in = False
                 self._overlay_alpha = 0
 
-    # ─── Отрисовка ───────────────────────────────────────────────
+    def _reset_game(self):
+        """Сбрасывает всё для новой игры (вызывается из TRANSITION)."""
+        try:
+            self.settings.initialize_dynamic_settings()
+            self.score = 0
+            self.ships_left = self.settings.ship_limit
+            self.sb.reset()
+            self.bullets.empty()
+            self.aliens.empty()
+            self._create_fleet()
+            self.ship.center_ship()
+        except Exception:
+            logger.exception("Ошибка при перезапуске игры")
 
-    def _update_screen(self):
-        """Отрисовывает экран в зависимости от состояния."""
-        self.screen.fill(self.settings.bg_color)
-        self.starfield.draw(self.screen)
+    def _restart_to_menu(self):
+        """Возврат в главное меню."""
+        self._change_state(GameState.MENU)
+        self.bullets.empty()
+        self.aliens.empty()
+        self.sb.reset()
+        self.fade_in = False
+        self._overlay_alpha = 0
+        self.respawn_timer = 0.0
 
-        if self.state in (GameState.PLAYING, GameState.PAUSED):
-            for bullet in self.bullets.sprites():
-                bullet.draw_bullet()
-            self.ship.blit_me()
-            self.aliens.draw(self.screen)
-            self.sb.draw()
+    # endregion
 
-            if self.state == GameState.PAUSED:
-                pause_surface = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)
-                pause_surface.fill((0, 0, 0, 150))
-                self.screen.blit(pause_surface, (0, 0))
-
-                pause_text = self.font.render("Press 'p' to continue", True, TEXT_COLOR)
-                pause_rect = pause_text.get_rect(center=self.screen_rect.center)
-                self.screen.blit(pause_text, pause_rect)
-                self._draw_color_panel()
-
-        elif self.state == GameState.MENU:
-            for key in self.text_cache:
-                text_data = self.text_cache[key]
-                self.screen.blit(text_data["image"], text_data["rect"])
-            self.play_button.draw_button()
-            self._draw_color_panel()
-
-        self._draw_overlay()
-        pygame.display.flip()
-
-    # ─── События ─────────────────────────────────────────────────
-
+    # region 4. СОБЫТИЯ И ВВОД (UI + КЛАВИАТУРА)
     def _check_events(self):
         """Обрабатывает события в зависимости от состояния."""
         sliders_active = self.state in (GameState.MENU, GameState.PAUSED)
@@ -299,13 +390,11 @@ class AlienInvasion:
 
     def _check_keydown_events(self, event):
         """Реагирует на нажатие клавиш (глобально и по состояниям)."""
-        # Глобальные клавиши
         if event.key == pygame.K_ESCAPE:
             self._quit_game()
         elif event.key == pygame.K_m:
             self._toggle_background_music(not self.fon_music_active)
 
-        # Клавиши для разных состояний
         if self.state == GameState.PLAYING:
             if event.key in (pygame.K_d, pygame.K_RIGHT):
                 self.ship.moving_right = True
@@ -342,45 +431,47 @@ class AlienInvasion:
             elif event.key in (pygame.K_a, pygame.K_LEFT):
                 self.ship.moving_left = False
 
-    def _draw_overlay(self):
-        if self._overlay_alpha > 0:
-            self._overlay_surface.set_alpha(self._overlay_alpha)
-            self.screen.blit(self._overlay_surface, (0, 0))
+    def _check_play_button(self, mouse_pos):
+        if self.play_button.rect.collidepoint(mouse_pos):
+            self._start_transition(self._reset_game)
 
-    def _setup_display(self):
-        try:
-            self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-        except pygame.error as e:
-            logger.warning(f"Не удалось установить полноэкранный режим: {e}")
+    def _update_mouse(self):
+        """Курсор виден только в меню и на паузе."""
+        should_be_visible = self.state in (GameState.MENU, GameState.PAUSED)
+        if should_be_visible != self._mouse_visible:
             try:
-                display_info = pygame.display.Info()
-                width, height = display_info.current_w, display_info.current_h
-                if width == 0 or height == 0:
-                    raise ValueError("Не удалось получить информацию о дисплее")
-                self.screen = pygame.display.set_mode((width, height))
-            except (pygame.error, ValueError) as e2:
-                logger.critical(f"Критическая ошибка: не удалось создать окно: {e2}")
-                pygame.quit()
-                sys.exit(1)
-        self.screen_rect = self.screen.get_rect()
+                pygame.mouse.set_visible(should_be_visible)
+                if should_be_visible:
+                    pygame.mouse.set_pos(
+                        int(self.screen_rect.right * 0.6),
+                        int(self.screen_rect.bottom * 0.5),
+                    )
+                self._mouse_visible = should_be_visible
+            except pygame.error as e:
+                logger.warning(f"Не удалось изменить видимость курсора: {e}")
 
-    def _set_window_icon(self):
-        icon_path = resource_path("dop_fails/images/ai_bmp.bmp")
-        try:
-            icon = pygame.image.load(icon_path)
-            pygame.display.set_icon(icon)
-        except (FileNotFoundError, pygame.error) as e:
-            logger.warning(f"Не удалось загрузить иконку для окна: {e}")
+    def _handle_slider_events(self, event) -> bool:
+        changed = False
+        for slider in self.color_sliders:
+            if slider.handle_event(event):
+                changed = True
+        if changed:
+            self._update_bg_from_sliders()
+            return True
+        return False
 
-    def _update_settings_for_display(self):
-        self.settings.screen_width = self.screen_rect.width
-        self.settings.screen_height = self.screen_rect.height
+    def _update_bg_from_sliders(self):
+        """Мгновенно обновляет цвет фона по значениям ползунков."""
+        new_color = (
+            self.color_sliders[0].value,
+            self.color_sliders[1].value,
+            self.color_sliders[2].value,
+        )
+        self.settings.set_bg_color(new_color)
 
-    def _init_text_rendering(self):
-        """Инициализирует настройки рендеринга текста."""
-        self.font = load_font(FONT_SIZE_LARGE)
-        self.text_cache = {}
+    # endregion
 
+    # region 5. АУДИО
     def _init_sounds(self):
         self.fon_music = None
         self.create_alien_music = None
@@ -413,6 +504,18 @@ class AlienInvasion:
         except (FileNotFoundError, pygame.error) as e:
             logger.warning(f"Не удалось загрузить звуковые эффекты: {e}")
 
+    def _toggle_background_music(self, active):
+        self.fon_music_active = active
+        if not self.audio_enabled or self.fon_music is None:
+            return
+        try:
+            if active:
+                self.fon_music.play(-1)
+            else:
+                self.fon_music.stop()
+        except pygame.error as e:
+            logger.warning(f"Ошибка при управлении фоновой музыкой: {e}")
+
     def _play_sound(self, sound):
         if sound is None:
             return
@@ -421,77 +524,160 @@ class AlienInvasion:
         except pygame.error as e:
             logger.warning(f"Ошибка воспроизведения звука: {e}")
 
-    def _preload_instructions(self):
-        y_position = self.play_button.rect.y - 100
-        for i, text in enumerate(INSTRUCTIONS):
-            text_image = self.font.render(text, True, TEXT_COLOR)
-            text_rect = text_image.get_rect()
-            text_rect.centerx = int(self.screen_rect.centerx * 0.5)
-            text_rect.top = y_position
-            self.text_cache[i] = {"image": text_image, "rect": text_rect}
-            y_position += 50
+    # endregion
 
-    def _init_color_sliders(self):
-        panel_w, panel_h = 480, 240
-        panel_x = self.screen_rect.centerx - int(panel_w // 2)
-        panel_y = self.screen_rect.bottom - panel_h - 40
-        self.color_panel_rect = pygame.Rect(panel_x, panel_y, panel_w, panel_h)
+    # region 6. ИГРОВАЯ ЛОГИКА (ИГРОК И БОЙ)
+    def _fire_bullet(self):
+        if len(self.bullets) < int(self.settings.bullets_allowed):
+            new_bullet = Bullet(self)
+            self.bullets.add(new_bullet)
+            self._play_sound(self.fire_music)
 
-        label_offset = 100
-        slider_w = panel_w - label_offset - 40
-        r, g, b = self.settings.bg_color
+    def _update_bullets(self, dt):
+        self.bullets.update(dt)
+        for bullet in self.bullets.copy():
+            if bullet.rect.bottom <= 0:
+                self.bullets.remove(bullet)
+        self._check_bullet_alien_collisions()
 
-        self.color_sliders = [
-            Slider(
-                panel_x + label_offset,
-                panel_y + 80,
-                slider_w,
-                0,
-                255,
-                r,
-                "R",
-                (220, 60, 60),
-            ),
-            Slider(
-                panel_x + label_offset,
-                panel_y + 140,
-                slider_w,
-                0,
-                255,
-                g,
-                "G",
-                (60, 220, 60),
-            ),
-            Slider(
-                panel_x + label_offset,
-                panel_y + 200,
-                slider_w,
-                0,
-                255,
-                b,
-                "B",
-                (70, 110, 230),
-            ),
-        ]
+    def _handle_level_up(self):
+        try:
+            self.settings.fleet_direction = 1
+            if not self._create_fleet():
+                return
+            self.bullets.empty()
+            self.settings.increase_speed()
+            self.settings.level += 1
+            self._play_sound(self.create_alien_music)
+            self._start_transition()
+        except Exception:
+            logger.exception("Ошибка при переходе на новый уровень")
 
-    def _update_bg_from_sliders(self):
-        """Мгновенно обновляет цвет фона по значениям ползунков."""
-        new_color = (
-            self.color_sliders[0].value,
-            self.color_sliders[1].value,
-            self.color_sliders[2].value,
-        )
-        self.settings.set_bg_color(new_color)
+    def _ship_hit(self):
+        if self.ships_left > 0:
+            self.ships_left -= 1
+            self.bullets.empty()
+            self.aliens.empty()
+            self._create_fleet()
+            self._play_sound(self.create_alien_music)
+            self.ship.center_ship()
+            self.respawn_timer = self.RESPAWN_DURATION
+        else:
+            self._restart_to_menu()
+            self._play_sound(self.over_music)
 
-    def _handle_slider_events(self, event) -> bool:
-        changed = False
-        for slider in self.color_sliders:
-            if slider.handle_event(event):
-                changed = True
-        if changed:
-            self._update_bg_from_sliders()
+    # endregion
+
+    # region 7. УПРАВЛЕНИЕ ФЛОТОМ (ПРИШЕЛЬЦЫ)
+    def _create_fleet(self) -> bool:
+        try:
+            alien = Alien(self)
+            alien_width, alien_height = alien.rect.size
+            current_x = alien_width
+            current_y = alien_height + FLEET_TOP_OFFSET
+
+            while current_y < (
+                self.screen_rect.height - FLEET_ROWS_BELOW * alien_height
+            ):
+                while current_x < (self.screen_rect.width - 2 * alien_width):
+                    self._create_alien(current_x, current_y)
+                    current_x += (
+                        alien_width + alien_width * self.settings.distance_multiplier
+                    )
+                current_x = alien_width
+                current_y += (
+                    alien_height + alien_height * self.settings.distance_multiplier
+                )
+
+            if not self.aliens:
+                logger.error("Флот пуст — возврат в меню")
+                self._restart_to_menu()
+                return False
             return True
-        return False
+        except Exception:  # noqa: BLE001
+            logger.error("Ошибка при создании флота")
+            return False
+
+    def _create_alien(self, x_position, y_position):
+        new_alien = Alien(self)
+        new_alien.x = float(x_position)
+        new_alien.y = float(y_position)
+        new_alien.rect.x = int(x_position)
+        new_alien.rect.y = int(y_position)
+        self.aliens.add(new_alien)
+
+    def _update_aliens(self, dt):
+        self._check_fleet_edges()
+        self.aliens.update(dt)
+        if pygame.sprite.spritecollideany(self.ship, self.aliens):
+            self._ship_hit()
+        self._check_aliens_bottom()
+
+    def _check_aliens_bottom(self):
+        for alien in self.aliens.sprites():
+            if alien.rect.bottom >= self.screen_rect.height:
+                self._ship_hit()
+                break
+
+    def _check_bullet_alien_collisions(self):
+        collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
+        if collisions:
+            for aliens in collisions.values():
+                self.score += self.settings.alien_points * len(aliens)
+            self.sb.check_record()
+        if not self.aliens:
+            self._handle_level_up()
+
+    def _check_fleet_edges(self):
+        for alien in self.aliens.sprites():
+            if alien.check_edges():
+                self._change_fleet_direction()
+                break
+
+    def _change_fleet_direction(self):
+        for alien in self.aliens.sprites():
+            alien.drop()
+        self.settings.fleet_direction *= -1
+
+    # endregion
+
+    # region 8. ОТРИСОВКА (РЕНДЕРИНГ)
+    def _update_screen(self):
+        """Отрисовывает экран в зависимости от состояния."""
+        self.screen.fill(self.settings.bg_color)
+        self.starfield.draw(self.screen)
+
+        if self.state in (GameState.PLAYING, GameState.PAUSED):
+            for bullet in self.bullets.sprites():
+                bullet.draw_bullet()
+            self.ship.blit_me()
+            self.aliens.draw(self.screen)
+            self.sb.draw()
+
+            if self.state == GameState.PAUSED:
+                pause_surface = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)
+                pause_surface.fill((0, 0, 0, 150))
+                self.screen.blit(pause_surface, (0, 0))
+
+                pause_text = self.font.render("Press 'p' to continue", True, TEXT_COLOR)
+                pause_rect = pause_text.get_rect(center=self.screen_rect.center)
+                self.screen.blit(pause_text, pause_rect)
+                self._draw_color_panel()
+
+        elif self.state == GameState.MENU:
+            for key in self.text_cache:
+                text_data = self.text_cache[key]
+                self.screen.blit(text_data["image"], text_data["rect"])
+            self.play_button.draw_button()
+            self._draw_color_panel()
+
+        self._draw_overlay()
+        pygame.display.flip()
+
+    def _draw_overlay(self):
+        if self._overlay_alpha > 0:
+            self._overlay_surface.set_alpha(self._overlay_alpha)
+            self.screen.blit(self._overlay_surface, (0, 0))
 
     def _draw_color_panel(self):
         rect = self.color_panel_rect
@@ -534,178 +720,7 @@ class AlienInvasion:
         for slider in self.color_sliders:
             slider.draw(self.screen)
 
-    def _quit_game(self) -> None:
-        try:
-            self.settings.save()
-        except Exception as e:  # noqa: BLE001
-            logger.warning(f"Не удалось сохранить настройки при выходе: {e}")
-        logger.info("Закрытие игры")
-        pygame.quit()
-        sys.exit()
-
-    def _toggle_background_music(self, active):
-        self.fon_music_active = active
-        if not self.audio_enabled or self.fon_music is None:
-            return
-        try:
-            if active:
-                self.fon_music.play(-1)
-            else:
-                self.fon_music.stop()
-        except pygame.error as e:
-            logger.warning(f"Ошибка при управлении фоновой музыкой: {e}")
-
-    def _check_play_button(self, mouse_pos):
-        if self.play_button.rect.collidepoint(mouse_pos):
-            self._start_transition(self._reset_game)
-
-    def _reset_game(self):
-        """Сбрасывает всё для новой игры (вызывается из TRANSITION)."""
-        try:
-            self.settings.initialize_dynamic_settings()
-            self.score = 0
-            self.ships_left = self.settings.ship_limit
-            self.sb.reset()
-            self.bullets.empty()
-            self.aliens.empty()
-            self._create_fleet()
-            self.ship.center_ship()
-        except Exception:
-            logger.exception("Ошибка при перезапуске игры")
-
-    def _restart_to_menu(self):
-        """Возврат в главное меню."""
-        self._change_state(GameState.MENU)
-        self.bullets.empty()
-        self.aliens.empty()
-        self.sb.reset()
-        self.fade_in = False
-        self._overlay_alpha = 0
-        self.respawn_timer = 0.0
-
-    def _update_mouse(self):
-        """Курсор виден только в меню и на паузе."""
-        should_be_visible = self.state in (GameState.MENU, GameState.PAUSED)
-        if should_be_visible != self._mouse_visible:
-            try:
-                pygame.mouse.set_visible(should_be_visible)
-                if should_be_visible:
-                    pygame.mouse.set_pos(
-                        int(self.screen_rect.right * 0.6),
-                        int(self.screen_rect.bottom * 0.5),
-                    )
-                self._mouse_visible = should_be_visible
-            except pygame.error as e:
-                logger.warning(f"Не удалось изменить видимость курсора: {e}")
-
-    def _fire_bullet(self):
-        if len(self.bullets) < int(self.settings.bullets_allowed):
-            new_bullet = Bullet(self)
-            self.bullets.add(new_bullet)
-            self._play_sound(self.fire_music)
-
-    def _update_bullets(self, dt):
-        self.bullets.update(dt)
-        for bullet in self.bullets.copy():
-            if bullet.rect.bottom <= 0:
-                self.bullets.remove(bullet)
-        self._check_bullet_alien_collisions()
-
-    def _update_aliens(self, dt):
-        self._check_fleet_edges()
-        self.aliens.update(dt)
-        if pygame.sprite.spritecollideany(self.ship, self.aliens):
-            self._ship_hit()
-        self._check_aliens_bottom()
-
-    def _check_bullet_alien_collisions(self):
-        collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
-        if collisions:
-            for aliens in collisions.values():
-                self.score += self.settings.alien_points * len(aliens)
-            self.sb.check_record()
-        if not self.aliens:
-            self._handle_level_up()
-
-    def _handle_level_up(self):
-        try:
-            self.settings.fleet_direction = 1
-            if not self._create_fleet():
-                return
-            self.bullets.empty()
-            self.settings.increase_speed()
-            self.settings.level += 1
-            self._play_sound(self.create_alien_music)
-            self._start_transition()  # Без коллбека — просто перезапуск анимации
-        except Exception:
-            logger.exception("Ошибка при переходе на новый уровень")
-
-    def _ship_hit(self):
-        if self.ships_left > 0:
-            self.ships_left -= 1
-            self.bullets.empty()
-            self.aliens.empty()
-            self._create_fleet()
-            self._play_sound(self.create_alien_music)
-            self.ship.center_ship()
-            self.respawn_timer = self.RESPAWN_DURATION
-        else:
-            self._restart_to_menu()
-            self._play_sound(self.over_music)
-
-    def _check_aliens_bottom(self):
-        for alien in self.aliens.sprites():
-            if alien.rect.bottom >= self.screen_rect.height:
-                self._ship_hit()
-                break
-
-    def _create_fleet(self) -> bool:
-        try:
-            alien = Alien(self)
-            alien_width, alien_height = alien.rect.size
-            current_x = alien_width
-            current_y = alien_height + FLEET_TOP_OFFSET
-
-            while current_y < (
-                self.screen_rect.height - FLEET_ROWS_BELOW * alien_height
-            ):
-                while current_x < (self.screen_rect.width - 2 * alien_width):
-                    self._create_alien(current_x, current_y)
-                    current_x += (
-                        alien_width + alien_width * self.settings.distance_multiplier
-                    )
-                current_x = alien_width
-                current_y += (
-                    alien_height + alien_height * self.settings.distance_multiplier
-                )
-
-            if not self.aliens:
-                logger.error("Флот пуст — возврат в меню")
-                self._restart_to_menu()
-                return False
-            return True
-        except Exception:  # noqa: BLE001
-            logger.error("Ошибка при создании флота")
-            return False
-
-    def _create_alien(self, x_position, y_position):
-        new_alien = Alien(self)
-        new_alien.x = float(x_position)
-        new_alien.y = float(y_position)
-        new_alien.rect.x = int(x_position)
-        new_alien.rect.y = int(y_position)
-        self.aliens.add(new_alien)
-
-    def _check_fleet_edges(self):
-        for alien in self.aliens.sprites():
-            if alien.check_edges():
-                self._change_fleet_direction()
-                break
-
-    def _change_fleet_direction(self):
-        for alien in self.aliens.sprites():
-            alien.drop()
-        self.settings.fleet_direction *= -1
+    # endregion
 
 
 if __name__ == "__main__":
