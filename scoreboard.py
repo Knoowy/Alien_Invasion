@@ -20,11 +20,11 @@ class Scoreboard:
     RECORD_FILE = "record.txt"
     RECORD_SOUND = "dop_fails/music/record.mp3"
 
-    def __init__(self, screen, screen_rect, settings, stats, ship_factory):
+    def __init__(self, screen, screen_rect, settings, game, ship_factory):
         self.screen = screen
         self.screen_rect = screen_rect
         self.settings = settings
-        self.stats = stats
+        self.game = game  # <--- Ссылка на главный объект игры
         self._ship_factory = ship_factory
 
         self.font = load_font(FONT_SIZE_LARGE)
@@ -85,10 +85,7 @@ class Scoreboard:
         return f"{number:,}"
 
     def _render(self, text: str, position: tuple, anchor: str):
-        """Рендерит текст и возвращает изображение с прямоугольником.
-
-        anchor: topleft, topright, centerx, center
-        """
+        """Рендерит текст и возвращает изображение с прямоугольником."""
         image = self.font.render(text, True, TEXT_COLOR, self.settings.bg_color)
         rect = image.get_rect()
 
@@ -111,13 +108,13 @@ class Scoreboard:
 
     def _update_ships(self):
         """Обновляет отображение оставшихся кораблей."""
-        if self.stats.ships_left == self._last_ships:
+        if self.game.ships_left == self._last_ships:
             return
 
-        self._last_ships = self.stats.ships_left
+        self._last_ships = self.game.ships_left
         self.ships.empty()
 
-        for i in range(self.stats.ships_left):
+        for i in range(self.game.ships_left):
             ship = self._ship_factory()
             ship.rect.x = SHIP_SPACING + i * (ship.rect.width + SHIP_SPACING)
             ship.rect.y = 10
@@ -125,10 +122,10 @@ class Scoreboard:
 
     def check_record(self) -> bool:
         """Проверяет и обновляет рекорд. True — если рекорд побит."""
-        if self.stats.score <= self.record:
+        if self.game.score <= self.record:
             return False
 
-        self.record = self.stats.score
+        self.record = self.game.score
         self._save_record(self.record)
 
         if self.has_record and not self.new_record:
@@ -158,10 +155,10 @@ class Scoreboard:
             self._invalidate_caches()
 
         # Счёт
-        if self.stats.score != self._last_score:
-            self._last_score = self.stats.score
+        if self.game.score != self._last_score:
+            self._last_score = self.game.score
             self.score_image, self.score_rect = self._render(
-                self._format(self.stats.score),
+                self._format(self.game.score),
                 (self.screen_rect.right - SCORE_RIGHT_OFFSET, SCORE_TOP),
                 "topright",
             )
