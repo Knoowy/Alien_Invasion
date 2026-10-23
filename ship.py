@@ -47,13 +47,19 @@ class Ship(Sprite):
         self.x = float(self.rect.x)
 
     def update(self, dt):
-        """Обновляет позицию корабля."""
-        if self.moving_right and self.rect.right < self.screen_rect.right:
-            self.x += self.settings.ship_speed * dt
-        if self.moving_left and self.rect.left > 0:
-            self.x -= self.settings.ship_speed * dt
+        """Обновляет позицию корабля.
 
-        self.rect.x = int(self.x)
+        Использует жёсткое ограничение через min/max — корабль
+        физически не может уехать за край экрана.
+        """
+        right_limit = self.screen_rect.right - self.rect.width
+
+        if self.moving_right:
+            self.x = min(self.x + self.settings.ship_speed * dt, right_limit)
+        if self.moving_left:
+            self.x = max(self.x - self.settings.ship_speed * dt, 0)
+
+        self.rect.x = round(self.x)
 
     def blit_me(self):
         """Отрисовывает корабль."""

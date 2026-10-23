@@ -17,11 +17,9 @@ class Alien(Sprite):
         self.image = self._load_image()
         self.rect = self.image.get_rect()
 
-        self.rect.x = self.rect.width
-        self.rect.y = self.rect.height
-
-        self.x = float(self.rect.x)
-        self.y = float(self.rect.y)
+        # Базовая позиция — НИКОГДА не меняется
+        self.base_x = float(self.rect.x)
+        self.base_y = float(self.rect.y)
 
     def _load_image(self, default_size=(60, 60), default_color=(128, 128, 128)):
         """Загружает изображение пришельца или создает заглушку."""
@@ -32,33 +30,20 @@ class Alien(Sprite):
 
         try:
             image = pygame.image.load(image_path)
-
-            # Убираем белый фон
             colorkey = image.get_at((0, 0))
             image.set_colorkey(colorkey)
-
             return image.convert()
         except pygame.error:
             return create_placeholder_image(default_size, default_color)
 
-    def check_edges(self):
-        """Возвращает True, если пришелец достиг края экрана.
+    def set_fleet_position(self, offset_x: int, offset_y: int):
+        """Устанавливает позицию на основе базовой + глобальных смещений флота."""
+        self.rect.x = round(self.base_x) + offset_x
+        self.rect.y = round(self.base_y) + offset_y
 
-        Проверяется только тот край, к которому движется флот.
-        Это устраняет «двойной drop», когда флот, отскочив от края,
-        из-за погрешности округления продолжает «касаться» его.
-        """
+    def check_edges(self):
+        """Не используется напрямую. Оставлено для совместимости."""
         screen_rect = self.screen.get_rect()
         if self.settings.fleet_direction > 0:
             return self.rect.right >= screen_rect.right
         return self.rect.left <= 0
-
-    def update(self, dt):
-        """Перемещает пришельца вправо или влево."""
-        self.x += self.settings.alien_speed * self.settings.fleet_direction * dt
-        self.rect.x = round(self.x)
-
-    def drop(self):
-        """Опускает пришельца вниз."""
-        self.y += self.settings.fleet_drop_speed
-        self.rect.y = round(self.y)

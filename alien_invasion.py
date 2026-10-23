@@ -71,6 +71,10 @@ class AlienInvasion:
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
 
+        # Глобальные смещения флота (для детерминированного движения)
+        self._fleet_offset_x = 0.0
+        self._fleet_offset_y = 0
+
         # Звёздное небо
         self.starfield = StarField(
             self.screen_rect.width, self.screen_rect.height, count=200
@@ -346,6 +350,11 @@ class AlienInvasion:
             self.sb.reset()
             self.bullets.empty()
             self.aliens.empty()
+
+            # Сброс глобальных смещений флота
+            self._fleet_offset_x = 0.0
+            self._fleet_offset_y = 0
+
             self._create_fleet()
             self.ship.center_ship()
         except Exception:
@@ -543,6 +552,8 @@ class AlienInvasion:
     def _handle_level_up(self):
         try:
             self.settings.fleet_direction = 1
+            self._fleet_offset_x = 0.0
+            self._fleet_offset_y = 0
             if not self._create_fleet():
                 return
             self.bullets.empty()
@@ -558,6 +569,10 @@ class AlienInvasion:
             self.ships_left -= 1
             self.bullets.empty()
             self.aliens.empty()
+
+            self._fleet_offset_x = 0.0
+            self._fleet_offset_y = 0
+
             self._create_fleet()
             self._play_sound(self.create_alien_music)
             self.ship.center_ship()
@@ -595,29 +610,51 @@ class AlienInvasion:
                 return False
             return True
         except Exception:  # noqa: BLE001
-            logger.error("Ошибка при создании флота")
+            logger.exception("Ошибка при создании флота")
             return False
 
     def _create_alien(self, x_position, y_position):
         new_alien = Alien(self)
-        new_alien.x = float(x_position)
-        new_alien.y = float(y_position)
+        new_alien.base_x = float(x_position)
+        new_alien.base_y = float(y_position)
         new_alien.rect.x = int(x_position)
         new_alien.rect.y = int(y_position)
         self.aliens.add(new_alien)
 
     def _update_aliens(self, dt):
+        """Обновляет позиции флота. Движение детерминировано через общий offset."""
         self._check_fleet_edges()
-        self.aliens.update(dt)
+
+        # Двигаем единый offset флота (float, без потери точности)
+        self._fleet_offset_x += (
+            self.settings.alien_speed * self.settings.fleet_direction * dt
+        )
+
+        # Применяем позиции ко всем пришельцам
+        self._apply_fleet_positions()
+
         if pygame.sprite.spritecollideany(self.ship, self.aliens):
             self._ship_hit()
+
         self._check_aliens_bottom()
 
+    def _apply_fleet_positions(self):
+        """Применяет глобальные смещения ко всем пришельцам.
+
+        Строй идеально ровный: ошибка округления одна на весь флот,
+        а не накапливается у каждого спрайта.
+        """
+        offset_x = round(self._fleet_offset_x)
+        for alien in self.aliens:
+            alien.set_fleet_position(offset_x, self._fleet_offset_y)
+
     def _check_aliens_bottom(self):
-        for alien in self.aliens.sprites():
-            if alien.rect.bottom >= self.screen_rect.height:
-                self._ship_hit()
-                break
+        """Проверяет, не дошли ли пришельцы до низа. По bounding box."""
+        if not self.aliens:
+            return
+        max_bottom = max(a.rect.bottom for a in self.aliens)
+        if max_bottom >= self.screen_rect.height:
+            self._ship_hit()
 
     def _check_bullet_alien_collisions(self):
         collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
@@ -629,14 +666,25 @@ class AlienInvasion:
             self._handle_level_up()
 
     def _check_fleet_edges(self):
-        for alien in self.aliens.sprites():
-            if alien.check_edges():
-                self._change_fleet_direction()
-                break
+        """Проверяет границы флота по общему bounding box.
+
+        O(n) один раз за кадр, а не O(n) внутри вложенного цикла.
+        """
+        if not self.aliens:
+            return
+
+        offset_x = round(self._fleet_offset_x)
+        left = min(a.base_x for a in self.aliens) + offset_x
+        right = max(a.base_x + a.rect.width for a in self.aliens) + offset_x
+
+        if self.settings.fleet_direction > 0 and right >= self.screen_rect.right:
+            self._change_fleet_direction()
+        elif self.settings.fleet_direction < 0 and left <= 0:
+            self._change_fleet_direction()
 
     def _change_fleet_direction(self):
-        for alien in self.aliens.sprites():
-            alien.drop()
+        """Опускает флот на фикс. шаг и меняет направление."""
+        self._fleet_offset_y += self.settings.fleet_drop_speed
         self.settings.fleet_direction *= -1
 
     # endregion
