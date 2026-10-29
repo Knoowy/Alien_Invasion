@@ -1,7 +1,10 @@
 import os
+import random
 import sys
 import time
 from enum import Enum, auto
+
+from boss import BeamAttack, BombMarker, Boss
 
 # Скрываем приветствие Pygame
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
@@ -70,6 +73,11 @@ class AlienInvasion:
         self.ship = Ship(self)
         self.bullets = pygame.sprite.Group()
         self.aliens = pygame.sprite.Group()
+
+        self.boss = None
+        self.boss_bullets = pygame.sprite.Group()
+        self.boss_beams = []  # активные лучи
+        self.boss_bombs = []  # активные маркеры бомбардировки
 
         # Глобальные смещения флота (для детерминированного движения)
         self._fleet_offset_x = 0.0
@@ -235,7 +243,8 @@ class AlienInvasion:
                     else:
                         self.ship.update(dt)
                         self._update_bullets(dt)
-                        self._update_aliens(dt)
+                        if self.state == GameState.PLAYING:
+                            self._update_aliens(dt)
 
                 self._update_mouse()
                 self.starfield.update(dt)
@@ -344,18 +353,21 @@ class AlienInvasion:
     def _reset_game(self):
         """Сбрасывает всё для новой игры (вызывается из TRANSITION)."""
         try:
-            self.settings.initialize_dynamic_settings()
+            self.settings.reset()
             self.score = 0
             self.ships_left = self.settings.ship_limit
             self.sb.reset()
             self.bullets.empty()
             self.aliens.empty()
+            self.boss = None
+            self.boss_bullets.empty()
+            self.boss_beams.clear()
+            self.boss_bombs.clear()
 
-            # Сброс глобальных смещений флота
             self._fleet_offset_x = 0.0
             self._fleet_offset_y = 0
 
-            self._create_fleet()
+            self._spawn_enemies()
             self.ship.center_ship()
         except Exception:
             logger.exception("Ошибка при перезапуске игры")
@@ -365,6 +377,11 @@ class AlienInvasion:
         self._change_state(GameState.MENU)
         self.bullets.empty()
         self.aliens.empty()
+        self.boss = None
+        self.boss_bullets.empty()
+        self.boss_beams.clear()
+        self.boss_bombs.clear()
+
         self.sb.reset()
         self.fade_in = False
         self._overlay_alpha = 0
@@ -535,7 +552,7 @@ class AlienInvasion:
 
     # endregion
 
-    # region 6. ИГРОВАЯ ЛОГИКА (ИГРОК И БОЙ)
+    # region 6. ИГРОВАЯ ЛОГИКА
     def _fire_bullet(self):
         if len(self.bullets) < int(self.settings.bullets_allowed):
             new_bullet = Bullet(self)
@@ -550,15 +567,27 @@ class AlienInvasion:
         self._check_bullet_alien_collisions()
 
     def _handle_level_up(self):
+        """Переход на следующий уровень: инкремент и создание новых врагов."""
         try:
-            self.settings.fleet_direction = 1
+            # Сначала повышаем уровень и сложность
+            self.settings.increase_level()
+
+            # Сброс смещений флота
             self._fleet_offset_x = 0.0
             self._fleet_offset_y = 0
-            if not self._create_fleet():
-                return
+
+            # Очистка старого поля
             self.bullets.empty()
-            self.settings.increase_speed()
-            self.settings.level += 1
+            self.aliens.empty()
+            self.boss = None
+            self.boss_bullets.empty()
+            self.boss_beams.clear()
+            self.boss_bombs.clear()
+
+            # Создаём врагов для нового уровня (флот или босс)
+            if not self._spawn_enemies():
+                return
+
             self._play_sound(self.create_alien_music)
             self._start_transition()
         except Exception:
@@ -569,11 +598,15 @@ class AlienInvasion:
             self.ships_left -= 1
             self.bullets.empty()
             self.aliens.empty()
+            self.boss = None
+            self.boss_bullets.empty()
+            self.boss_beams.clear()
+            self.boss_bombs.clear()
 
             self._fleet_offset_x = 0.0
             self._fleet_offset_y = 0
 
-            self._create_fleet()
+            self._spawn_enemies()
             self._play_sound(self.create_alien_music)
             self.ship.center_ship()
             self.respawn_timer = self.RESPAWN_DURATION
@@ -584,6 +617,21 @@ class AlienInvasion:
     # endregion
 
     # region 7. УПРАВЛЕНИЕ ФЛОТОМ (ПРИШЕЛЬЦЫ)
+    def _spawn_enemies(self) -> bool:
+        """Создаёт врагов для текущего уровня: босса или обычный флот."""
+        if self.settings.level % self.settings.BOSS_LEVEL_INTERVAL == 0:
+            return self._create_boss()
+        return self._create_fleet()
+
+    def _create_boss(self) -> bool:
+        """Создаёт босса для босс-уровня."""
+        try:
+            self.boss = Boss(self)
+            return True
+        except Exception:
+            logger.exception("Ошибка при создании босса")
+            return False
+
     def _create_fleet(self) -> bool:
         try:
             alien = Alien(self)
@@ -622,21 +670,93 @@ class AlienInvasion:
         self.aliens.add(new_alien)
 
     def _update_aliens(self, dt):
-        """Обновляет позиции флота. Движение детерминировано через общий offset."""
-        self._check_fleet_edges()
+        """Обновляет врагов — босса или флот."""
+        if self.boss is not None:
+            self._update_boss(dt)
+            return
 
-        # Двигаем единый offset флота (float, без потери точности)
+        self._check_fleet_edges()
         self._fleet_offset_x += (
             self.settings.alien_speed * self.settings.fleet_direction * dt
         )
-
-        # Применяем позиции ко всем пришельцам
         self._apply_fleet_positions()
 
         if pygame.sprite.spritecollideany(self.ship, self.aliens):
             self._ship_hit()
 
         self._check_aliens_bottom()
+
+    def _update_boss(self, dt):
+        """Обновляет босса, его атаки (луч, бомбы, пули) и коллизии."""
+        if self.boss is None:
+            return
+
+        self.boss.update(dt)
+
+        # Пока босс появляется — не атакует
+        if self.boss.is_spawning():
+            return
+
+        # ─── ОБЫЧНЫЕ ПУЛИ ─────────────────────────────────────────
+        self.boss.shoot_timer -= dt
+        if self.boss.shoot_timer <= 0:
+            for b in self.boss.shoot(self):
+                self.boss_bullets.add(b)
+            self.boss.shoot_timer = self.settings.boss_shoot_intervals[self.boss.phase]
+
+        # ─── ЛУЧ ──────────────────────────────────────────────────
+        self.boss.beam_timer -= dt
+        if self.boss.beam_timer <= 0:
+            self.boss_beams.append(BeamAttack(self, self.boss))
+            self.boss.beam_timer = self.settings.boss_beam_cooldowns[self.boss.phase]
+
+        # ─── КОВРОВАЯ БОМБАРДИРОВКА (со 2-й фазы) ─────────────────
+        if self.boss.phase >= 2:
+            self.boss.bombing_timer -= dt
+            if self.boss.bombing_timer <= 0:
+                for _ in range(self.settings.BOSS_BOMBING_COUNT):
+                    x = random.randint(80, self.screen_rect.width - 80)
+                    y = random.randint(
+                        int(self.screen_rect.height - self.ship.rect.height - 50),
+                        self.screen_rect.height - 65,
+                    )
+                    self.boss_bombs.append(BombMarker(self, x, y))
+                self.boss.bombing_timer = self.settings.boss_bombing_cooldowns[self.boss.phase]
+
+        # ─── ОБНОВЛЕНИЕ АТАК ──────────────────────────────────────
+        # Пули босса
+        self.boss_bullets.update(dt)
+        for bullet in self.boss_bullets.copy():
+            if (
+                bullet.rect.top > self.screen_rect.height
+                or bullet.rect.bottom < 0
+                or bullet.rect.left > self.screen_rect.width
+                or bullet.rect.right < 0
+            ):
+                self.boss_bullets.remove(bullet)
+
+        # Лучи
+        for beam in self.boss_beams[:]:
+            beam.update(dt)
+            if beam.state == "done":
+                self.boss_beams.remove(beam)
+            elif beam.state == "firing" and beam.check_hit(self.ship.rect):
+                self._ship_hit()
+                return
+
+        # Бомбы
+        for bomb in self.boss_bombs[:]:
+            bomb.update(dt)
+            if not bomb.is_alive():
+                self.boss_bombs.remove(bomb)
+            elif bomb.exploded and bomb.check_hit(self.ship.rect):
+                self._ship_hit()
+                return
+
+        # ─── КОЛЛИЗИЯ ─────────────────────────────────────────────
+        if pygame.sprite.spritecollideany(self.ship, self.boss_bullets):
+            self._ship_hit()
+            return
 
     def _apply_fleet_positions(self):
         """Применяет глобальные смещения ко всем пришельцам.
@@ -657,12 +777,33 @@ class AlienInvasion:
             self._ship_hit()
 
     def _check_bullet_alien_collisions(self):
+        """Обрабатывает попадания пуль по флоту и боссу."""
+        # Флот
         collisions = pygame.sprite.groupcollide(self.bullets, self.aliens, True, True)
         if collisions:
             for aliens in collisions.values():
                 self.score += self.settings.alien_points * len(aliens)
             self.sb.check_record()
-        if not self.aliens:
+
+        # Босс (только если уже появился)
+        if self.boss is not None and not self.boss.is_spawning():
+            hits = pygame.sprite.spritecollide(self.boss, self.bullets, True)
+            for _ in hits:
+                self.score += self.settings.BOSS_HIT_POINTS
+                if self.boss.take_damage():
+                    # Босс убит
+                    self.score += (
+                        self.settings.BOSS_KILL_POINTS
+                        + self.settings.level * self.settings.BOSS_KILL_POINTS_PER_LEVEL
+                    )
+                    self.boss = None
+                    self.boss_bullets.empty()
+                    self.sb.check_record()
+                    self._handle_level_up()
+                    return
+
+        # Условие перехода на следующий уровень
+        if not self.aliens and self.boss is None:
             self._handle_level_up()
 
     def _check_fleet_edges(self):
@@ -677,9 +818,12 @@ class AlienInvasion:
         left = min(a.base_x for a in self.aliens) + offset_x
         right = max(a.base_x + a.rect.width for a in self.aliens) + offset_x
 
-        if self.settings.fleet_direction > 0 and right >= self.screen_rect.right:
-            self._change_fleet_direction()
-        elif self.settings.fleet_direction < 0 and left <= 0:
+        if (
+            self.settings.fleet_direction > 0
+            and right >= self.screen_rect.right
+            or self.settings.fleet_direction < 0
+            and left <= 0
+        ):
             self._change_fleet_direction()
 
     def _change_fleet_direction(self):
@@ -698,9 +842,37 @@ class AlienInvasion:
         if self.state in (GameState.PLAYING, GameState.PAUSED):
             for bullet in self.bullets.sprites():
                 bullet.draw_bullet()
+
+            # Босс и его атаки
+            if self.boss is not None:
+                self.boss.blit_me()
+                for bullet in self.boss_bullets.sprites():
+                    bullet.draw()
+                for bomb in self.boss_bombs:
+                    bomb.draw()
+                for beam in self.boss_beams:
+                    beam.draw()
+
             self.ship.blit_me()
             self.aliens.draw(self.screen)
             self.sb.draw()
+
+            # HP-бар и WARNING босса
+            if self.boss is not None:
+                self.boss.draw_hp_bar(self.screen, self.screen_rect.width)
+
+                # Мигающий WARNING во время появления
+                if self.boss.is_spawning():
+                    # Мигание: 10 раз в секунду (меняем цвет/прозрачность)
+                    if int(self.boss.spawn_timer * 10) % 2 == 0:
+                        warning_text = self.font.render("WARNING!", True, (255, 50, 50))
+                        warning_rect = warning_text.get_rect(
+                            center=(
+                                self.screen_rect.centerx,
+                                self.boss.rect.bottom + 200,
+                            )
+                        )
+                        self.screen.blit(warning_text, warning_rect)
 
             if self.state == GameState.PAUSED:
                 pause_surface = pygame.Surface(self.screen_rect.size, pygame.SRCALPHA)

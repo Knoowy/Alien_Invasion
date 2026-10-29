@@ -47,11 +47,6 @@ class Ship(Sprite):
         self.x = float(self.rect.x)
 
     def update(self, dt):
-        """Обновляет позицию корабля.
-
-        Использует жёсткое ограничение через min/max — корабль
-        физически не может уехать за край экрана.
-        """
         right_limit = self.screen_rect.right - self.rect.width
 
         if self.moving_right:
