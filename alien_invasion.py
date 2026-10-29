@@ -274,6 +274,10 @@ class AlienInvasion:
 
     def _quit_game(self) -> None:
         try:
+            self.sb.flush_record()
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"Не удалось сбросить рекорд при выходе: {e}")
+        try:
             self.settings.save()
         except Exception as e:  # noqa: BLE001
             logger.warning(f"Не удалось сохранить настройки при выходе: {e}")
@@ -569,6 +573,7 @@ class AlienInvasion:
     def _handle_level_up(self):
         """Переход на следующий уровень: инкремент и создание новых врагов."""
         try:
+            self.sb.flush_record()
             # Сначала повышаем уровень и сложность
             self.settings.increase_level()
 
@@ -611,6 +616,7 @@ class AlienInvasion:
             self.ship.center_ship()
             self.respawn_timer = self.RESPAWN_DURATION
         else:
+            self.sb.flush_record()
             self._restart_to_menu()
             self._play_sound(self.over_music)
 

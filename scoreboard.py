@@ -121,12 +121,17 @@ class Scoreboard:
             self.ships.add(ship)
 
     def check_record(self) -> bool:
-        """Проверяет и обновляет рекорд. True — если рекорд побит."""
+        """Проверяет и обновляет рекорд. True — если рекорд побит.
+
+        НЕ пишет на диск сразу — только ставит флаг _record_dirty.
+        Физическая запись откладывается до flush_record(), чтобы не дёргать
+        I/O на каждом убийстве. Вызывается часто (на каждом попадании).
+        """
         if self.game.score <= self.record:
             return False
 
         self.record = self.game.score
-        self._save_record(self.record)
+        self._record_dirty = True
 
         if self.has_record and not self.new_record:
             self.new_record = True
@@ -136,8 +141,20 @@ class Scoreboard:
         self._last_record = -1
         return True
 
+    def flush_record(self) -> None:
+        """Сбрасывает отложенный рекорд на диск.
+
+        Безопасно вызывать многократно — если нечего писать, ничего не делает.
+        Вызывать при выходе, game over и смене уровня.
+        """
+        if self._record_dirty:
+            self._save_record(self.record)
+            self._record_dirty = False
+
     def reset(self):
         """Сбрасывает состояние для новой игры."""
+        self.flush_record()
+
         self.new_record = False
         self.rm_cur = False
         self._last_ships = -1
