@@ -1,5 +1,6 @@
 """Сборка Alien Invasion в один исполняемый файл через PyInstaller."""
-#AI NOT CHECK
+
+# AI NOT CHECK
 import os
 import shutil
 import subprocess

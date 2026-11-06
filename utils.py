@@ -3,6 +3,7 @@ import os
 import sys
 from pathlib import Path
 
+
 # AI NOT CHECK
 def resource_path(relative_path: str) -> str:
     """Получить абсолютный путь к ресурсу (работает в EXE и в исходниках)."""

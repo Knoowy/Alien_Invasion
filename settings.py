@@ -14,6 +14,7 @@
 
 from utils import load_config, save_config
 
+
 # LAST  COMMIT AI NOT CHECK
 class Settings:
     """Все параметры игры; динамические — вычисляются из уровня."""
@@ -40,19 +41,19 @@ class Settings:
     BASE_DISTANCE_MULTIPLIER = 1.0
 
     # ─── Скорости: коэффициенты роста ──────────────────────────
-    ALIEN_SPEED_GROWTH_P1 = 1.05       # ×1.05 за уровень в фазе 1
-    ALIEN_SPEED_GROWTH_P2 = 1.03       # ×1.03 за уровень в фазе 2
-    BULLET_SPEED_GROWTH_P2 = 50.0      # +50 за уровень в фазе 2
-    SHIP_SPEED_GROWTH_P2 = 100.0       # +100 за уровень в фазе 2
+    ALIEN_SPEED_GROWTH_P1 = 1.05  # ×1.05 за уровень в фазе 1
+    ALIEN_SPEED_GROWTH_P2 = 1.03  # ×1.03 за уровень в фазе 2
+    BULLET_SPEED_GROWTH_P2 = 50.0  # +50 за уровень в фазе 2
+    SHIP_SPEED_GROWTH_P2 = 100.0  # +100 за уровень в фазе 2
 
     # ─── Очки ──────────────────────────────────────────────────
-    POINTS_SOFT_CAP = 1488             # порог перехода на медленный рост
-    POINTS_GROWTH_FAST = 1.5           # ×1.5 до капа
-    POINTS_GROWTH_SLOW = 1.005         # ×1.005 после капа
+    POINTS_SOFT_CAP = 1488  # порог перехода на медленный рост
+    POINTS_GROWTH_FAST = 1.5  # ×1.5 до капа
+    POINTS_GROWTH_SLOW = 1.005  # ×1.005 после капа
 
     # ─── Флот ──────────────────────────────────────────────────
     DISTANCE_MAX = 5.0
-    DISTANCE_INCREASE_RATE = 0.05       # +0.1 за уровень
+    DISTANCE_INCREASE_RATE = 0.05  # +0.1 за уровень
     BULLETS_MAX = 12
 
     # ─── Босс: базовые характеристики ──────────────────────────
@@ -65,8 +66,8 @@ class Settings:
     BOSS_SPAWN_DURATION = 2.5
 
     # ─── Босс: скорость движения ───────────────────────────────
-    BOSS_MOVE_SPEED_BASE = 0.2         # на 1-м уровне
-    BOSS_MOVE_SPEED_MAX = 0.5          # на 60-м уровне (дальше не растёт)
+    BOSS_MOVE_SPEED_BASE = 0.2  # на 1-м уровне
+    BOSS_MOVE_SPEED_MAX = 0.5  # на 60-м уровне (дальше не растёт)
 
     # ─── Босс: базовые интервалы атак (на ур. 1) ───────────────
     # К 60-му уровню все интервалы сокращаются ровно в 2 раза.
@@ -134,11 +135,13 @@ class Settings:
 
     def save(self) -> None:
         """Сохраняет настройки в config.json."""
-        save_config({
-            "bg_r": self.bg_color[0],
-            "bg_g": self.bg_color[1],
-            "bg_b": self.bg_color[2],
-        })
+        save_config(
+            {
+                "bg_r": self.bg_color[0],
+                "bg_g": self.bg_color[1],
+                "bg_b": self.bg_color[2],
+            }
+        )
 
     # ═══════════════════════════════════════════════════════════════
     # 4. ГЛАВНЫЙ ПЕРЕСЧЁТ — единственное место, где меняются параметры
@@ -172,8 +175,8 @@ class Settings:
         steps_p2 = max(0, min(level - 1, self.PHASE_2_END - 1) - (self.PHASE_1_END - 1))
         return (
             self.BASE_ALIEN_SPEED
-            * (self.ALIEN_SPEED_GROWTH_P1 ** steps_p1)
-            * (self.ALIEN_SPEED_GROWTH_P2 ** steps_p2)
+            * (self.ALIEN_SPEED_GROWTH_P1**steps_p1)
+            * (self.ALIEN_SPEED_GROWTH_P2**steps_p2)
         )
 
     def _calc_alien_points(self, level: int) -> int:
@@ -201,11 +204,16 @@ class Settings:
 
     def _calc_bullet_speed(self, level: int) -> float:
         """Скорость пуль игрока: линейный рост только в фазе 2."""
-        return self.BASE_BULLET_SPEED + self._phase2_steps(level) * self.BULLET_SPEED_GROWTH_P2
+        return (
+            self.BASE_BULLET_SPEED
+            + self._phase2_steps(level) * self.BULLET_SPEED_GROWTH_P2
+        )
 
     def _calc_ship_speed(self, level: int) -> float:
         """Скорость корабля игрока: линейный рост только в фазе 2."""
-        return self.BASE_SHIP_SPEED + self._phase2_steps(level) * self.SHIP_SPEED_GROWTH_P2
+        return (
+            self.BASE_SHIP_SPEED + self._phase2_steps(level) * self.SHIP_SPEED_GROWTH_P2
+        )
 
     def _calc_distance_multiplier(self, level: int) -> float:
         """Плотность флота: линейный рост, кап — DISTANCE_MAX (5.0)."""

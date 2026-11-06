@@ -4,7 +4,7 @@ import sys
 import time
 from enum import Enum, auto
 
-from boss import BeamAttack, BombMarker, Boss
+from boss import BeamAttack, BombMarker, Boss, BossDeathAnimation
 
 # Скрываем приветствие Pygame
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "hide"
@@ -78,6 +78,7 @@ class AlienInvasion:
         self.boss_bullets = pygame.sprite.Group()
         self.boss_beams = []  # активные лучи
         self.boss_bombs = []  # активные маркеры бомбардировки
+        self.boss_defeat_anim = None  # анимация уничтожения босса
 
         # Глобальные смещения флота (для детерминированного движения)
         self._fleet_offset_x = 0.0
@@ -240,6 +241,12 @@ class AlienInvasion:
                         self.respawn_timer -= dt
                         if self.respawn_timer < 0:
                             self.respawn_timer = 0.0
+                    elif self.boss_defeat_anim is not None:
+                        self.ship.update(dt)
+                        self.boss_defeat_anim.update(dt)
+                        if self.boss_defeat_anim.is_done():
+                            self.boss_defeat_anim = None
+                            self._handle_level_up()
                     else:
                         self.ship.update(dt)
                         self._update_bullets(dt)
@@ -367,6 +374,7 @@ class AlienInvasion:
             self.boss_bullets.empty()
             self.boss_beams.clear()
             self.boss_bombs.clear()
+            self.boss_defeat_anim = None
 
             self._fleet_offset_x = 0.0
             self._fleet_offset_y = 0
@@ -379,12 +387,14 @@ class AlienInvasion:
     def _restart_to_menu(self):
         """Возврат в главное меню."""
         self._change_state(GameState.MENU)
+        self._transition_callback = None
         self.bullets.empty()
         self.aliens.empty()
         self.boss = None
         self.boss_bullets.empty()
         self.boss_beams.clear()
         self.boss_bombs.clear()
+        self.boss_defeat_anim = None
 
         self.sb.reset()
         self.fade_in = False
@@ -445,11 +455,7 @@ class AlienInvasion:
 
         elif self.state == GameState.TRANSITION:
             if event.key == pygame.K_SPACE:
-                if (
-                    self._transition_callback is not None
-                    or self.state == GameState.TRANSITION
-                ):
-                    self._finish_transition()
+                self._finish_transition()
             elif event.key == pygame.K_r:
                 self._restart_to_menu()
 
@@ -558,6 +564,8 @@ class AlienInvasion:
 
     # region 6. ИГРОВАЯ ЛОГИКА
     def _fire_bullet(self):
+        if self.boss_defeat_anim is not None:
+            return
         if len(self.bullets) < int(self.settings.bullets_allowed):
             new_bullet = Bullet(self)
             self.bullets.add(new_bullet)
@@ -663,7 +671,7 @@ class AlienInvasion:
                 self._restart_to_menu()
                 return False
             return True
-        except Exception:  # noqa: BLE001
+        except Exception:
             logger.exception("Ошибка при создании флота")
             return False
 
@@ -727,7 +735,9 @@ class AlienInvasion:
                         self.screen_rect.height - 65,
                     )
                     self.boss_bombs.append(BombMarker(self, x, y))
-                self.boss.bombing_timer = self.settings.boss_bombing_cooldowns[self.boss.phase]
+                self.boss.bombing_timer = self.settings.boss_bombing_cooldowns[
+                    self.boss.phase
+                ]
 
         # ─── ОБНОВЛЕНИЕ АТАК ──────────────────────────────────────
         # Пули босса
@@ -797,19 +807,23 @@ class AlienInvasion:
             for _ in hits:
                 self.score += self.settings.BOSS_HIT_POINTS
                 if self.boss.take_damage():
-                    # Босс убит
+                    # Босс убит — запускаем анимацию уничтожения.
+                    # _handle_level_up вызовется после её завершения.
                     self.score += (
                         self.settings.BOSS_KILL_POINTS
                         + self.settings.level * self.settings.BOSS_KILL_POINTS_PER_LEVEL
                     )
+                    self.boss_defeat_anim = BossDeathAnimation(self, self.boss)
+                    self.sb.check_record()
                     self.boss = None
                     self.boss_bullets.empty()
-                    self.sb.check_record()
-                    self._handle_level_up()
+                    self.boss_beams.clear()
+                    self.boss_bombs.clear()
+                    self.bullets.empty()
                     return
 
-        # Условие перехода на следующий уровень
-        if not self.aliens and self.boss is None:
+        # Условие перехода на следующий уровень.
+        if not self.aliens and self.boss is None and self.boss_defeat_anim is None:
             self._handle_level_up()
 
     def _check_fleet_edges(self):
@@ -861,6 +875,9 @@ class AlienInvasion:
 
             self.ship.blit_me()
             self.aliens.draw(self.screen)
+            if self.boss_defeat_anim is not None:
+                self.boss_defeat_anim.draw(self.screen)
+
             self.sb.draw()
 
             # HP-бар и WARNING босса

@@ -4,7 +4,9 @@ import os
 import pygame
 from pygame.sprite import Sprite
 
-from utils import create_placeholder_image, resource_path
+from style import FONT_SIZE_LARGE
+from utils import create_placeholder_image, load_font, resource_path
+
 
 # AI NOT CHECK
 class Boss(Sprite):
@@ -86,8 +88,21 @@ class Boss(Sprite):
         if new_phase > self.phase:
             self.phase = new_phase
             self.phase_flash_timer = 0.5
-            #Ускорение по горизонтали
+            # Ускорение по горизонтали
             self.move_speed *= 1.1
+
+            self.shoot_timer = min(
+                self.shoot_timer,
+                self.settings.boss_shoot_intervals[self.phase],
+            )
+            self.beam_timer = min(
+                self.beam_timer,
+                self.settings.boss_beam_cooldowns[self.phase],
+            )
+            self.bombing_timer = min(
+                self.bombing_timer,
+                self.settings.boss_bombing_cooldowns[self.phase],
+            )
 
         if self.is_spawning():
             self.rect.centerx = self.center_x
@@ -509,3 +524,76 @@ class BossBullet(Sprite):
 
     def draw(self):
         self.screen.blit(self.image, self.rect)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# АНИМАЦИЯ УНИЧТОЖЕНИЯ БОССА
+# ═══════════════════════════════════════════════════════════════════
+
+
+class BossDeathAnimation:
+    """Босс плавно растворяется: fade-out + лёгкое расширение.
+
+    Без вспышки и взрывов — только сам босс и текст.
+    Создаётся в момент гибели босса; AlienInvasion обновляет её
+    до is_done(), после чего вызывает _handle_level_up.
+    """
+
+    DURATION = 1.8  # полная длительность до level-up
+    DISSOLVE_DURATION = 0.7  # fade-out босса
+    DISSOLVE_SCALE = 1.1  # лёгкое расширение при растворении
+    TEXT_DELAY = 0.35  # через сколько появится «BOSS DEFEATED!»
+    TEXT_SCALE_DURATION = 0.5  # длительность scale-in текста
+
+    def __init__(self, ai_game, boss):
+        self.screen = ai_game.screen
+        self.screen_rect = ai_game.screen.get_rect()
+
+        # Сохраняем картинку и центр босса на момент смерти.
+        # После создания анимации self.boss в AlienInvasion станет None,
+        # поэтому всё нужное копируем сюда.
+        self.center = boss.rect.center
+        self.base_image = boss.original_image
+
+        self.elapsed = 0.0
+
+        title_font = load_font(FONT_SIZE_LARGE * 2)
+        self._text_base = title_font.render("BOSS DEFEATED!", True, (255, 220, 60))
+
+    def update(self, dt):
+        self.elapsed += dt
+
+    def is_done(self) -> bool:
+        return self.elapsed >= self.DURATION
+
+    def draw(self, screen):
+        # ─── Растворение босса ─────────────────────────────────
+        if self.elapsed < self.DISSOLVE_DURATION:
+            progress = self.elapsed / self.DISSOLVE_DURATION
+            alpha = int(255 * (1 - progress))
+            scale = 1.0 + (self.DISSOLVE_SCALE - 1.0) * progress
+
+            if alpha > 0:
+                w = int(self.base_image.get_width() * scale)
+                h = int(self.base_image.get_height() * scale)
+                if w > 0 and h > 0:
+                    scaled = pygame.transform.smoothscale(self.base_image, (w, h))
+                    scaled.set_alpha(alpha)
+                    rect = scaled.get_rect(center=self.center)
+                    screen.blit(scaled, rect)
+
+        # ─── Текст с scale-in ──────────────────────────────────
+        if self.elapsed > self.TEXT_DELAY:
+            text_elapsed = self.elapsed - self.TEXT_DELAY
+            progress = min(text_elapsed / self.TEXT_SCALE_DURATION, 1.0)
+            ease = 1 - (1 - progress) ** 3
+            scale = 0.4 + 0.6 * ease
+            alpha = int(255 * min(text_elapsed / 0.3, 1.0))
+
+            w = int(self._text_base.get_width() * scale)
+            h = int(self._text_base.get_height() * scale)
+            if w > 0 and h > 0:
+                scaled = pygame.transform.smoothscale(self._text_base, (w, h))
+                scaled.set_alpha(alpha)
+                rect = scaled.get_rect(center=self.screen_rect.center)
+                screen.blit(scaled, rect)

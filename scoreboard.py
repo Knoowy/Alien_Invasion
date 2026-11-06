@@ -36,6 +36,7 @@ class Scoreboard:
         # Состояние нового рекорда
         self.new_record = False
         self.rm_cur = False
+        self._record_dirty = False
 
         # Звук рекорда
         try:
@@ -181,7 +182,7 @@ class Scoreboard:
             )
 
         # Рекорд
-        if self.record != self._last_record:
+        if self.has_record and self.record != self._last_record:
             self._last_record = self.record
             self.record_image, self.record_rect = self._render(
                 self._format(self.record),
