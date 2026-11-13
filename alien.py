@@ -11,8 +11,6 @@ class Alien(Sprite):
 
     def __init__(self, ai_game):
         super().__init__()
-        self.screen = ai_game.screen
-        self.settings = ai_game.settings
 
         self.image = self._load_image()
         self.rect = self.image.get_rect()
@@ -40,10 +38,3 @@ class Alien(Sprite):
         """Устанавливает позицию на основе базовой + глобальных смещений флота."""
         self.rect.x = round(self.base_x) + offset_x
         self.rect.y = round(self.base_y) + offset_y
-
-    def check_edges(self):
-        """Не используется напрямую. Оставлено для совместимости."""
-        screen_rect = self.screen.get_rect()
-        if self.settings.fleet_direction > 0:
-            return self.rect.right >= screen_rect.right
-        return self.rect.left <= 0

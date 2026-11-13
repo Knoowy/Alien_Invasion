@@ -1,8 +1,10 @@
 import json
+import logging
 import os
 import sys
 from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
 # AI NOT CHECK
 def resource_path(relative_path: str) -> str:
@@ -44,8 +46,8 @@ def load_config() -> dict:
         path = Path(get_data_path()) / "config.json"
         if path.exists():
             return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        pass
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning(f"Не удалось загрузить config.json: {e}")
     return {}
 
 
@@ -57,8 +59,8 @@ def save_config(config: dict) -> None:
             json.dumps(config, indent=2, ensure_ascii=False),
             encoding="utf-8",
         )
-    except OSError:
-        pass
+    except OSError as e:
+        logger.warning(f"Не удалось сохранить config.json: {e}")
 
 
 def load_font(size: int, font_relative_path: str = "dop_fails/fonts/font.ttf"):
@@ -92,6 +94,8 @@ def create_placeholder_image(
     width, height = size
     placeholder = pygame.Surface(size)
     placeholder.fill(color)
+    if pygame.display.get_surface():
+        placeholder = placeholder.convert()
 
     font = pygame.font.Font(None, 20)
     text_surf = font.render(text, True, (255, 255, 255))

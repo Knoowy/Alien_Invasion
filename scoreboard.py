@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 import pygame
@@ -13,6 +14,7 @@ from style import (
 )
 from utils import get_data_path, load_font, resource_path
 
+logger = logging.getLogger(__name__)
 
 class Scoreboard:
     """Отображает счёт, рекорд, уровень и оставшиеся корабли."""
@@ -20,12 +22,12 @@ class Scoreboard:
     RECORD_FILE = "record.txt"
     RECORD_SOUND = "dop_fails/music/record.mp3"
 
-    def __init__(self, screen, screen_rect, settings, game, ship_factory):
+    def __init__(self, screen, screen_rect, settings, game, ship_sprite):
         self.screen = screen
         self.screen_rect = screen_rect
         self.settings = settings
         self.game = game  # <--- Ссылка на главный объект игры
-        self._ship_factory = ship_factory
+        self._ship_sprite = ship_sprite
 
         self.font = load_font(FONT_SIZE_LARGE)
 
@@ -68,7 +70,8 @@ class Scoreboard:
                 return 0
             content = path.read_text().strip()
             return int(content) if content and content.isdigit() else 0
-        except (FileNotFoundError, ValueError, OSError):
+        except (FileNotFoundError, ValueError, OSError) as e:
+            logger.warning(f"Не удалось загрузить рекорд: {e}")
             return 0
 
     def _save_record(self, score: int) -> None:
@@ -77,8 +80,8 @@ class Scoreboard:
             path = Path(get_data_path()) / self.RECORD_FILE
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(str(score))
-        except OSError:
-            pass
+        except OSError as e:
+            logger.warning(f"Не удалось сохранить рекорд: {e}")
 
     @staticmethod
     def _format(number: int) -> str:
@@ -116,7 +119,11 @@ class Scoreboard:
         self.ships.empty()
 
         for i in range(self.game.ships_left):
-            ship = self._ship_factory()
+            # Создаём пустой спрайт и копируем в него готовую картинку
+            ship = pygame.sprite.Sprite()
+            ship.image = self._ship_sprite.image
+            ship.rect = self._ship_sprite.rect.copy()
+            
             ship.rect.x = SHIP_SPACING + i * (ship.rect.width + SHIP_SPACING)
             ship.rect.y = 10
             self.ships.add(ship)

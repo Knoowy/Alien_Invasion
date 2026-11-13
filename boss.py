@@ -22,8 +22,7 @@ class Boss(Sprite):
         self.settings = ai_game.settings
 
         self.original_image = self._load_image()
-        self.image = self.original_image.copy()
-        self.rect = self.image.get_rect()
+        self.rect = self.original_image.get_rect()
 
         self.center_x = self.screen_rect.centerx
         self.base_y = self.screen_rect.top + 250
@@ -51,6 +50,8 @@ class Boss(Sprite):
 
         self.phase = 1
         self.phase_flash_timer = 0.0
+        self._hp_bar_bg = self._build_hp_bar_bg()
+        self._hp_bar_fg = self._build_hp_bar_fg()
 
     def _load_image(self):
         boss_path = resource_path("dop_fails/images/boss.bmp")
@@ -206,16 +207,41 @@ class Boss(Sprite):
 
         self.screen.blit(image_to_draw, self.rect)
 
+    def _build_hp_bar_bg(self) -> pygame.Surface:
+        """Предрендер фона HP-бара: только тёмная подложка (под полоской)."""
+        surf = pygame.Surface((self.HP_BAR_WIDTH, self.HP_BAR_HEIGHT))
+        surf.fill((40, 40, 40))
+        return surf
+
+    def _build_hp_bar_fg(self) -> pygame.Surface:
+        """Предрендер переднего плана HP-бара: маркеры фаз + рамка (над полоской)."""
+        bar_width = self.HP_BAR_WIDTH
+        bar_height = self.HP_BAR_HEIGHT
+        surf = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
+
+        # Маркеры фаз
+        for mark in (0.33, 0.66):
+            mark_x = int(bar_width * mark)
+            pygame.draw.line(surf, (255, 255, 255), (mark_x, 0), (mark_x, bar_height), 2)
+
+        # Белая рамка
+        pygame.draw.rect(
+            surf, (200, 200, 200), (0, 0, bar_width, bar_height),
+            2, border_radius=5,
+        )
+
+        return surf
+
     def draw_hp_bar(self, screen, screen_width):
         bar_width = self.HP_BAR_WIDTH
         bar_height = self.HP_BAR_HEIGHT
         bar_x = (screen_width - bar_width) // 2
         bar_y = 100
 
-        pygame.draw.rect(
-            screen, (40, 40, 40), (bar_x, bar_y, bar_width, bar_height), border_radius=5
-        )
+        # 1. Тёмная подложка
+        screen.blit(self._hp_bar_bg, (bar_x, bar_y))
 
+        # 2. Цветная полоска здоровья
         spawn_progress = self.get_spawn_progress()
         ratio = max(0.0, (self.hp / self.max_hp) * spawn_progress)
         fill_width = int(bar_width * ratio)
@@ -228,26 +254,12 @@ class Boss(Sprite):
             else:
                 color = (220, 60, 60)
             pygame.draw.rect(
-                screen, color, (bar_x, bar_y, fill_width, bar_height), border_radius=5
+                screen, color, (bar_x, bar_y, fill_width, bar_height),
+                border_radius=4,
             )
 
-        for mark in (0.33, 0.66):
-            mark_x = bar_x + int(bar_width * mark)
-            pygame.draw.line(
-                screen,
-                (255, 255, 255),
-                (mark_x, bar_y),
-                (mark_x, bar_y + bar_height),
-                2,
-            )
-
-        pygame.draw.rect(
-            screen,
-            (200, 200, 200),
-            (bar_x, bar_y, bar_width, bar_height),
-            2,
-            border_radius=5,
-        )
+        # 3. Маркеры фаз + рамка поверх полоски (чтобы всегда были видны)
+        screen.blit(self._hp_bar_fg, (bar_x, bar_y))
 
 
 # ═══════════════════════════════════════════════════════════════════

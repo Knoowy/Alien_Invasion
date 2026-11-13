@@ -1,7 +1,6 @@
 import os
 import random
 import sys
-import time
 from enum import Enum, auto
 
 from boss import BeamAttack, BombMarker, Boss, BossDeathAnimation
@@ -94,7 +93,7 @@ class AlienInvasion:
             screen_rect=self.screen_rect,
             settings=self.settings,
             game=self,
-            ship_factory=lambda: Ship(self),
+            ship_sprite=self.ship,
         )
         self.play_button = Button(self, "Play")
 
@@ -269,7 +268,7 @@ class AlienInvasion:
                 if error_count >= MAX_ERRORS:
                     logger.critical("Слишком много ошибок Pygame — выход")
                     self._quit_game()
-                time.sleep(0.05)
+                pygame.time.delay(50)
 
             except Exception:
                 error_count += 1
@@ -277,7 +276,7 @@ class AlienInvasion:
                 if error_count >= MAX_ERRORS:
                     logger.critical("Слишком много ошибок подряд — выход")
                     self._quit_game()
-                time.sleep(0.05)
+                pygame.time.delay(50)
 
     def _quit_game(self) -> None:
         try:
@@ -308,7 +307,7 @@ class AlienInvasion:
     def _start_transition(self, callback=None):
         """Запускает эффект гиперпрыжка."""
         self._change_state(GameState.TRANSITION)
-        self.transition_start_time = time.time()
+        self.transition_start_time = pygame.time.get_ticks()
         self._transition_callback = callback
 
     def _finish_transition(self):
@@ -324,7 +323,7 @@ class AlienInvasion:
         self._change_state(GameState.PLAYING)
 
         self.fade_in = True
-        self.fade_in_start_time = time.time()
+        self.fade_in_start_time = pygame.time.get_ticks()
 
     def _transition(self):
         """Анимация гиперпрыжка."""
@@ -332,7 +331,7 @@ class AlienInvasion:
             self.starfield.speed_multiplier = 1.0
             return
 
-        elapsed = time.time() - self.transition_start_time
+        elapsed = (pygame.time.get_ticks() - self.transition_start_time) / 1000.0
         progress = min(elapsed / self.TRANSITION_DURATION, 1.0)
 
         if progress < 0.35:
@@ -354,7 +353,7 @@ class AlienInvasion:
     def _fade_in(self):
         """Fade-in игры: overlay alpha 255 → 0."""
         if self.fade_in:
-            elapsed = time.time() - self.fade_in_start_time
+            elapsed = (pygame.time.get_ticks() - self.fade_in_start_time) / 1000.0
             progress = min(elapsed / self.FADE_IN_DURATION, 1.0)
             self._overlay_alpha = int(255 * (1.0 - progress))
             if progress >= 1.0:
@@ -368,16 +367,7 @@ class AlienInvasion:
             self.score = 0
             self.ships_left = self.settings.ship_limit
             self.sb.reset()
-            self.bullets.empty()
-            self.aliens.empty()
-            self.boss = None
-            self.boss_bullets.empty()
-            self.boss_beams.clear()
-            self.boss_bombs.clear()
-            self.boss_defeat_anim = None
-
-            self._fleet_offset_x = 0.0
-            self._fleet_offset_y = 0
+            self._clear_entities()
 
             self._spawn_enemies()
             self.ship.center_ship()
@@ -388,13 +378,7 @@ class AlienInvasion:
         """Возврат в главное меню."""
         self._change_state(GameState.MENU)
         self._transition_callback = None
-        self.bullets.empty()
-        self.aliens.empty()
-        self.boss = None
-        self.boss_bullets.empty()
-        self.boss_beams.clear()
-        self.boss_bombs.clear()
-        self.boss_defeat_anim = None
+        self._clear_entities()
 
         self.sb.reset()
         self.fade_in = False
@@ -585,17 +569,7 @@ class AlienInvasion:
             # Сначала повышаем уровень и сложность
             self.settings.increase_level()
 
-            # Сброс смещений флота
-            self._fleet_offset_x = 0.0
-            self._fleet_offset_y = 0
-
-            # Очистка старого поля
-            self.bullets.empty()
-            self.aliens.empty()
-            self.boss = None
-            self.boss_bullets.empty()
-            self.boss_beams.clear()
-            self.boss_bombs.clear()
+            self._clear_entities()
 
             # Создаём врагов для нового уровня (флот или босс)
             if not self._spawn_enemies():
@@ -609,15 +583,7 @@ class AlienInvasion:
     def _ship_hit(self):
         if self.ships_left > 0:
             self.ships_left -= 1
-            self.bullets.empty()
-            self.aliens.empty()
-            self.boss = None
-            self.boss_bullets.empty()
-            self.boss_beams.clear()
-            self.boss_bombs.clear()
-
-            self._fleet_offset_x = 0.0
-            self._fleet_offset_y = 0
+            self._clear_entities()
 
             self._spawn_enemies()
             self._play_sound(self.create_alien_music)
@@ -850,6 +816,18 @@ class AlienInvasion:
         """Опускает флот на фикс. шаг и меняет направление."""
         self._fleet_offset_y += self.settings.fleet_drop_speed
         self.settings.fleet_direction *= -1
+
+    def _clear_entities(self):
+        """Полностью очищает игровое поле от врагов и снарядов."""
+        self.bullets.empty()
+        self.aliens.empty()
+        self.boss = None
+        self.boss_bullets.empty()
+        self.boss_beams.clear()
+        self.boss_bombs.clear()
+        self.boss_defeat_anim = None
+        self._fleet_offset_x = 0.0
+        self._fleet_offset_y = 0
 
     # endregion
 

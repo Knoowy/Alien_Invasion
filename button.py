@@ -1,5 +1,3 @@
-import time
-
 import pygame
 
 from style import FONT_SIZE_LARGE
@@ -38,7 +36,7 @@ class Button:
 
         self.hovered = False
 
-        self.start_time = time.time()
+        self.start_time = pygame.time.get_ticks()
 
         self.msg_image = self.font.render(msg, True, self.TEXT_COLOR)
         self.msg_rect = self.msg_image.get_rect(center=self.rect.center)
@@ -65,7 +63,7 @@ class Button:
     def _get_shine_x(self):
         """Возвращает X-позицию блика. None — если сейчас пауза."""
         cycle = self.SHINE_DURATION + self.SHINE_PAUSE
-        elapsed = (time.time() - self.start_time) % cycle
+        elapsed = ((pygame.time.get_ticks() - self.start_time) / 1000.0) % cycle
 
         # Если в паузе — блик не рисуем
         if elapsed >= self.SHINE_DURATION:
@@ -98,11 +96,6 @@ class Button:
         if x_pos is not None:
             shine_layer = pygame.Surface(rect.size, pygame.SRCALPHA)
             shine_layer.blit(self._shine, (x_pos, 0))
-
-            # Обрезаем блик по границам кнопки
-            mask = pygame.Surface(rect.size, pygame.SRCALPHA)
-            pygame.draw.rect(mask, (255, 255, 255, 255), mask.get_rect())
-            shine_layer.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
 
             self.screen.blit(shine_layer, rect.topleft)
 

@@ -19,6 +19,9 @@ class Slider:
         # Отдельный шрифт для подписи (меньше основного)
         self.label_font = load_font(FONT_SIZE_SLIDER)
 
+        self._cached_value = None
+        self._value_surf = None
+
     def handle_event(self, event) -> bool:
         """Обрабатывает события мыши. True — если значение изменилось."""
         if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -62,19 +65,22 @@ class Slider:
     def draw(self, screen):
         """Рисует ползунок."""
         rgb_color = (255, 255, 255)
-        # Буква "R" — на фиксированной позиции, не двигается
+        # Буква "R" — на фиксированной позиции
         letter_surf = self.label_font.render(self.label, True, rgb_color)
         letter_rect = letter_surf.get_rect()
-        letter_rect.left = self.rect.x - 80  # фиксированный отступ
+        letter_rect.left = self.rect.x - 80
         letter_rect.centery = self.rect.centery
         screen.blit(letter_surf, letter_rect)
 
-        # Число — прижато правым краем, растёт влево
-        value_surf = self.label_font.render(str(self.value), True, rgb_color)
-        value_rect = value_surf.get_rect()
-        value_rect.right = self.rect.x - 20  # ← фиксируем ПРАВЫЙ край
+        # Число — рендерим только если оно изменилось
+        if self.value != self._cached_value:
+            self._cached_value = self.value
+            self._value_surf = self.label_font.render(str(self.value), True, rgb_color)
+        
+        value_rect = self._value_surf.get_rect()
+        value_rect.right = self.rect.x - 20
         value_rect.centery = self.rect.centery
-        screen.blit(value_surf, value_rect)
+        screen.blit(self._value_surf, value_rect)
 
         # Дорожка
         pygame.draw.rect(screen, (50, 50, 60), self.rect, border_radius=4)
